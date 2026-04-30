@@ -51,11 +51,42 @@ def test_map_repository():
     assert asset.name == "atlan-python"
     assert asset.qualified_name == f"{conn_qn}/atlanhq/atlan-python"
     assert asset.description == "Python SDK for Atlan"
-    assert asset.application_type == "GitHub Repository"
-    assert asset.application_sub_type == "Python"
-    assert asset.application_url == "https://github.com/atlanhq/atlan-python"
-    assert asset.application_is_private is False
-    assert asset.application_star_count == 150
+    assert asset.source_url == "https://github.com/atlanhq/atlan-python"
+
+
+def test_map_repository_no_description():
+    """Test mapping a repo with no description defaults to empty string."""
+    repo = RepoRecord(
+        full_name="atlanhq/empty-repo",
+        name="empty-repo",
+        owner="atlanhq",
+        description=None,
+        html_url="https://github.com/atlanhq/empty-repo",
+        clone_url="https://github.com/atlanhq/empty-repo.git",
+        default_branch="main",
+        language=None,
+        is_private=True,
+        is_fork=False,
+        is_archived=False,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        pushed_at="2024-01-01T00:00:00Z",
+        size_kb=0,
+        stargazers_count=0,
+        watchers_count=0,
+        forks_count=0,
+        open_issues_count=0,
+        topics=[],
+        license_name=None,
+        has_wiki=False,
+        has_issues=False,
+        has_projects=False,
+        has_downloads=False,
+    )
+
+    asset = map_repository(repo, "default/github/123")
+    assert asset.description == ""
+    assert asset.name == "empty-repo"
 
 
 def test_map_wiki_page():
@@ -73,8 +104,23 @@ def test_map_wiki_page():
 
     assert asset.name == "Getting Started"
     assert asset.qualified_name == f"{conn_qn}/atlanhq/atlan-python/wiki/Getting-Started.md"
-    assert asset.application_field_type == "wiki_page"
-    assert asset.application_field_format == "markdown"
+    assert "Getting Started" in asset.description or "Welcome" in asset.description
+
+
+def test_map_wiki_page_long_content_truncated():
+    """Test that long wiki content is truncated to 500 chars in description."""
+    long_content = "x" * 600
+    page = WikiPageRecord(
+        repo_full_name="atlanhq/atlan-python",
+        page_path="Long-Page.md",
+        page_name="Long Page",
+        content=long_content,
+        file_sha="abc123",
+    )
+
+    asset = map_wiki_page(page, "default/github/123")
+    assert asset.description.endswith("...")
+    assert len(asset.description) == 503  # 500 chars + "..."
 
 
 def test_map_yaml_file():
@@ -92,8 +138,7 @@ def test_map_yaml_file():
 
     assert asset.name == "ci.yml"
     assert asset.qualified_name == f"{conn_qn}/atlanhq/atlan-python/yaml/.github/workflows/ci.yml"
-    assert asset.application_field_type == "config_file"
-    assert asset.application_field_format == "yaml"
+    assert "ci.yml" in asset.description or ".github/workflows/ci.yml" in asset.description
 
 
 def test_map_sbom_dependency():
@@ -117,8 +162,29 @@ def test_map_sbom_dependency():
 
     assert asset.name == "requests"
     assert asset.qualified_name == f"{conn_qn}/atlanhq/atlan-python/dep/SPDXRef-Package-pip-requests-2.28.0"
-    assert asset.application_field_type == "sbom_dependency"
     assert asset.description.startswith("SBOM dependency: requests 2.28.0")
+    assert asset.source_url == "pkg:pypi/requests@2.28.0"
+
+
+def test_map_sbom_dependency_no_purl():
+    """Test that a dependency without purl doesn't set source_url."""
+    dep = SbomDependencyRecord(
+        repo_full_name="atlanhq/atlan-python",
+        spdx_id="SPDXRef-unknown",
+        package_name="unknown-pkg",
+        package_version=None,
+        purl=None,
+        license_concluded=None,
+        license_declared=None,
+        supplier=None,
+        download_location=None,
+        relationship_type="PACKAGE",
+        parent_spdx_id=None,
+    )
+
+    asset = map_sbom_dependency(dep, "default/github/123")
+    assert asset.name == "unknown-pkg"
+    assert asset.description.startswith("SBOM dependency: unknown-pkg")
 
 
 def test_map_sbom_relationship():
@@ -159,3 +225,56 @@ def test_map_sbom_relationship():
     assert "depends on" in process.description.lower()
     assert len(process.inputs) == 1
     assert len(process.outputs) == 1
+
+
+def test_map_sbom_relationship_returns_none_for_non_depends_on():
+    """Test that non-DEPENDS_ON relationships return None."""
+    parent = SbomDependencyRecord(
+        repo_full_name="atlanhq/atlan-python",
+        spdx_id="SPDXRef-parent",
+        package_name="parent-pkg",
+        package_version="1.0.0",
+        purl=None,
+        license_concluded=None,
+        license_declared=None,
+        supplier=None,
+        download_location=None,
+        relationship_type="PACKAGE",
+        parent_spdx_id=None,
+    )
+    child = SbomDependencyRecord(
+        repo_full_name="atlanhq/atlan-python",
+        spdx_id="SPDXRef-child",
+        package_name="child-pkg",
+        package_version="1.0.0",
+        purl=None,
+        license_concluded=None,
+        license_declared=None,
+        supplier=None,
+        download_location=None,
+        relationship_type="CONTAINS",  # not DEPENDS_ON
+        parent_spdx_id="SPDXRef-parent",
+    )
+
+    result = map_sbom_relationship(child, parent, "default/github/123")
+    assert result is None
+
+
+def test_map_sbom_relationship_returns_none_with_no_parent():
+    """Test that a relationship with no parent returns None."""
+    child = SbomDependencyRecord(
+        repo_full_name="atlanhq/atlan-python",
+        spdx_id="SPDXRef-child",
+        package_name="child-pkg",
+        package_version="1.0.0",
+        purl=None,
+        license_concluded=None,
+        license_declared=None,
+        supplier=None,
+        download_location=None,
+        relationship_type="DEPENDS_ON",
+        parent_spdx_id=None,
+    )
+
+    result = map_sbom_relationship(child, None, "default/github/123")
+    assert result is None

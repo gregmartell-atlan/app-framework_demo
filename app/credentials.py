@@ -3,8 +3,11 @@
 Implements GitHubTokenCredential and registers it with the SDK's credential system.
 """
 
+from typing import Any
+
 from pydantic import BaseModel, Field
-from application_sdk.credentials import CredentialRef, register_credential_type
+from application_sdk.credentials import register_credential_type
+from application_sdk.credentials.errors import CredentialValidationError
 
 
 class GitHubTokenCredential(BaseModel):
@@ -14,6 +17,17 @@ class GitHubTokenCredential(BaseModel):
     """
 
     token: str = Field(..., description="GitHub Personal Access Token")
+
+    @property
+    def credential_type(self) -> str:
+        return "github_token"
+
+    async def validate(self) -> None:
+        if not self.token:
+            raise CredentialValidationError(
+                "GitHubTokenCredential.token must not be empty",
+                credential_name="github_token",
+            )
 
     def to_headers(self) -> dict[str, str]:
         """Convert credential to HTTP headers for GitHub API requests.
@@ -27,5 +41,9 @@ class GitHubTokenCredential(BaseModel):
         }
 
 
+def _parse_github_token(data: dict[str, Any]) -> GitHubTokenCredential:
+    return GitHubTokenCredential(token=data["token"])
+
+
 # Register the credential type with the SDK
-register_credential_type("github_token", GitHubTokenCredential)
+register_credential_type("github_token", GitHubTokenCredential, _parse_github_token)
