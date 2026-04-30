@@ -1,0 +1,134 @@
+{
+  "name": "github",
+  "label": "GitHub",
+  "description": "Extract repositories, wikis, YAML files, and SBOMs from GitHub",
+  "category": "git",
+  "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+  "connectorType": "source",
+  "certified": false,
+  "previewStatus": false,
+  "version": "0.1.0",
+  "tasks": {
+    "extract": {
+      "name": "github:fetch_repos",
+      "label": "Extract GitHub Metadata",
+      "description": "Fetch repositories, wikis, YAML files, and SBOMs from GitHub",
+      "type": "metadata",
+      "timeout": 3600,
+      "retry": {
+        "maxAttempts": 3,
+        "backoff": "exponential"
+      },
+      "outputs": {
+        "repos_file": {
+          "type": "file",
+          "description": "File reference containing repository data"
+        },
+        "wiki_file": {
+          "type": "file",
+          "description": "File reference containing wiki page data"
+        },
+        "yaml_file": {
+          "type": "file",
+          "description": "File reference containing YAML file data"
+        },
+        "sbom_file": {
+          "type": "file",
+          "description": "File reference containing SBOM dependency data"
+        },
+        "extraction_summary": {
+          "type": "string",
+          "description": "Summary of extraction results"
+        },
+        "repos_count": {
+          "type": "number",
+          "description": "Number of repositories extracted"
+        },
+        "wiki_pages_count": {
+          "type": "number",
+          "description": "Number of wiki pages extracted"
+        },
+        "yaml_files_count": {
+          "type": "number",
+          "description": "Number of YAML files extracted"
+        },
+        "sbom_dependencies_count": {
+          "type": "number",
+          "description": "Number of SBOM dependencies extracted"
+        }
+      }
+    },
+    "transform": {
+      "name": "github:transform",
+      "label": "Transform to Atlan Assets",
+      "description": "Map GitHub data to Atlan asset types",
+      "type": "metadata",
+      "dependencies": ["extract"],
+      "timeout": 1800,
+      "retry": {
+        "maxAttempts": 3,
+        "backoff": "exponential"
+      },
+      "inputs": {
+        "repos_file": "$.extract.outputs.repos_file",
+        "wiki_file": "$.extract.outputs.wiki_file",
+        "yaml_file": "$.extract.outputs.yaml_file",
+        "sbom_file": "$.extract.outputs.sbom_file"
+      },
+      "outputs": {
+        "assets_created": {
+          "type": "number",
+          "description": "Count of assets created"
+        },
+        "assets_updated": {
+          "type": "number",
+          "description": "Count of assets updated"
+        },
+        "repos_count": {
+          "type": "number",
+          "description": "Repository assets created"
+        },
+        "wiki_pages_count": {
+          "type": "number",
+          "description": "Wiki page assets created"
+        },
+        "yaml_files_count": {
+          "type": "number",
+          "description": "YAML file assets created"
+        },
+        "sbom_dependencies_count": {
+          "type": "number",
+          "description": "SBOM dependency assets created"
+        },
+        "sbom_relationships_count": {
+          "type": "number",
+          "description": "SBOM relationship assets created"
+        }
+      }
+    },
+    "publish": {
+      "name": "github:publish",
+      "label": "Publish to Atlan",
+      "description": "Write transformed assets to Atlan",
+      "type": "publish",
+      "dependencies": ["transform"],
+      "timeout": 1800,
+      "retry": {
+        "maxAttempts": 3,
+        "backoff": "exponential"
+      }
+    }
+  },
+  "handlers": {
+    "auth": {
+      "name": "auth",
+      "label": "Authentication",
+      "description": "Validate GitHub credentials"
+    },
+    "preflight": {
+      "name": "preflight",
+      "label": "Preflight Check",
+      "description": "Validate access and permissions"
+    }
+  }
+}

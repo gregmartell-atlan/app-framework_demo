@@ -1,8 +1,11 @@
 # atlan-github-app
 
 Native Atlan App Framework v3 connector for **GitHub** (cloud + GHE).
-Catalogues repositories, issues, and pull requests as Atlan `ApiSpec` /
-`ApiPath` assets.
+Catalogues repositories, wiki pages, YAML configuration files, and SBOM
+dependencies as Atlan `Application` and `ApplicationField` assets.
+
+**Sony POC** — demonstrates full v3-compliance + Phase 2 SBOM extraction
+with async task heartbeat resume pattern.
 
 ## Why this layout
 
@@ -58,13 +61,24 @@ atlan-github-app/
 │   ├── integration/            # respx-replayed E2E + boot probe
 │   ├── fixtures/github_api/    # captured fixtures of Greg's real public repos
 │   └── e2e/
-│       ├── README.md           # scenario coverage matrix
-│       └── RUN_LIVE.md         # one-paste live-run instructions for Mac
+│       ├── README.md           # 14-scenario coverage matrix
+│       ├── RUN_LIVE.md         # one-paste live-run instructions for Mac
+│       ├── test_github_app.py  # live tests (scenarios 1-5)
+│       ├── test_replay.py      # replay tests (scenarios 6-9, 14)
+│       └── histories/          # captured workflow execution histories
+├── helm/atlan-github-app/      # Kubernetes deployment (Phase 2)
+│   ├── Chart.yaml
+│   ├── values.yaml             # handler/worker split + KEDA autoscaling
+│   └── templates/
+│       ├── handler-deployment.yaml   # HTTP API server
+│       ├── worker-deployment.yaml    # Temporal activities
+│       └── worker-scaledobject.yaml  # KEDA temporal scaler
 ├── frontend/static/            # populated by App Playground for UI verification
 ├── Dockerfile                  # FROM registry.atlan.com/public/app-runtime-base:3
 ├── pyproject.toml              # SDK pinned, ruff/pyright excludes _input.py, poe tasks
 ├── .pre-commit-config.yaml     # excludes _input.py
-└── .github/workflows/          # v3-readiness + build + publish + test
+├── .env.example                # local dev environment variables
+└── .github/workflows/          # v3-readiness + build + boot-probe
 ```
 
 ## Getting started (local dev on Mac)
@@ -88,14 +102,23 @@ GITHUB_TOKEN=$(gh auth token) uv run poe dev   # boots handler+worker on :8000
 
 | GitHub entity | Atlan asset type | qualifiedName pattern |
 |---------------|------------------|------------------------|
-| Repository    | `ApiSpec`        | `{conn_qn}/{owner}/{repo}` |
-| Issue         | `ApiPath`        | `{conn_qn}/{owner}/{repo}/issues/{number}` |
-| Pull request  | `ApiPath`        | `{conn_qn}/{owner}/{repo}/pulls/{number}` |
+| Repository    | `Application`    | `{conn_qn}/{owner}/{repo}` |
+| Wiki page     | `ApplicationField` | `{conn_qn}/{owner}/{repo}/wiki/{page_path}` |
+| YAML file     | `ApplicationField` | `{conn_qn}/{owner}/{repo}/yaml/{file_path}` |
+| SBOM dependency | `ApplicationField` | `{conn_qn}/{owner}/{repo}/dep/{spdx_id}` |
+| SBOM DEPENDS_ON | `Process`        | `{parent_qn}/depends_on/{child_spdx_id}` |
+| README        | `Readme`         | attached to repository Application |
 
-Issues and pull requests are linked to their parent repo via
-`api_specification = ApiSpec.ref_by_qualified_name(repo_qn)` — using
+All child assets are linked to their parent repository via
+`application = Application.ref_by_qualified_name(repo_qn)` — using
 `uniqueAttributes.qualifiedName` (NOT `attributes.qualifiedName`) so the
 publish step's Atlas calls succeed (V2 verification rule).
+
+SBOM Process assets use `inputs` and `outputs` to represent dependency edges:
+- `inputs`: parent package (e.g., `app`)
+- `outputs`: child package (e.g., `requests`)
+
+This models the dependency graph as a lineage network in Atlan.
 
 ## Credential type
 
@@ -109,6 +132,53 @@ Accept: application/vnd.github+json
 X-GitHub-Api-Version: 2022-11-28
 ```
 
+## Phase 2 features
+
+### SBOM extraction (async task with heartbeat resume)
+
+The `fetch_sbom` task demonstrates the v3 typed-heartbeat pattern for long-running
+async operations:
+
+```python
+@task(
+    name="github:fetch_sbom",
+    timeout_seconds=3600,
+    heartbeat_timeout_seconds=120,
+    auto_heartbeat_seconds=10,
+    retry_max_attempts=3,
+)
+async def fetch_sbom(self, input: FetchSbomInput) -> FetchSbomOutput:
+    # Check for previous heartbeat (resume support)
+    prev_progress = await self.task_context.get_heartbeat_details(SbomProgress)
+    
+    # Skip already-completed repos on resume
+    # Poll with EXPONENTIAL backoff capped at 300s
+    # Heartbeat each iteration with SbomProgress(repo, report_id, attempts)
+```
+
+Key compliance points:
+- Typed heartbeat (`SbomProgress extends HeartbeatDetails`)
+- Exponential backoff: `min(initial * 2 ** attempt, 300)` (Topic 3 resolution)
+- Idempotent resume: checks output dir, skips completed repos
+- File streaming: `download_sbom_to_file` streams to avoid memory bloat
+
+### Helm chart (handler/worker split per ADR-0009)
+
+`helm/atlan-github-app/` implements the canonical v3 deployment pattern:
+- **Handler** deployment: HTTP API server, always 1 replica
+- **Worker** deployment: Temporal activities, KEDA autoscaled 0→10
+- **KEDA ScaledObject**: scales workers based on Temporal task queue depth (5 tasks/worker target)
+
+Deploy to Kubernetes:
+
+```bash
+helm install atlan-github-app ./helm/atlan-github-app \
+  --set image.tag=0.1.0 \
+  --set temporal.host=temporal-frontend.temporal.svc.cluster.local:7233 \
+  --set temporal.namespace=atlan-apps \
+  --set temporal.taskQueue=github-task-queue
+```
+
 ## What was tested where
 
 | Test surface | Where it ran |
@@ -116,6 +186,9 @@ X-GitHub-Api-Version: 2022-11-28
 | AST scan: no v2 imports anywhere | sandbox (this build) |
 | Python syntax of every source file | sandbox (this build) |
 | JSON schema of every generated artifact | sandbox (this build) |
-| Pydantic round-trip / unit / handler / replay tests | **needs uv sync on your Mac** — sandbox has no network for SDK install |
-| Live `/health`, `/manifest`, `/workflows/v1/start` boot probe | **needs your Mac** — see `tests/e2e/RUN_LIVE.md` |
-| Live extraction against `gregmartell-atlan` real repos | **needs your Mac + a real PAT** — see `tests/e2e/RUN_LIVE.md` |
+| v3-compliance verification (imports, types, patterns) | verified in final commit |
+| Pydantic round-trip / unit tests | `pytest tests/unit/` |
+| Handler boot probe (health/manifest endpoints) | `tests/integration/test_boot_probe.py` |
+| Live extraction against real GitHub repos | **needs your Mac + PAT** — see `tests/e2e/RUN_LIVE.md` |
+| SBOM heartbeat resume pattern | unit-tested in `test_contracts.py::test_sbom_progress_heartbeat` |
+| Helm chart syntax | validated via `helm lint` (TODO: run in CI) |

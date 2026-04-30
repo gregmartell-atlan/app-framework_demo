@@ -1,0 +1,22 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "atlan-github-app.fullname" . }}-worker
+  labels:
+    app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef:
+    name: {{ include "atlan-github-app.fullname" . }}-worker
+  pollingInterval: {{ .Values.keda.pollingInterval }}
+  cooldownPeriod: {{ .Values.keda.cooldownPeriod }}
+  minReplicaCount: {{ .Values.worker.minReplicas }}
+  maxReplicaCount: {{ .Values.worker.maxReplicas }}
+  triggers:
+    - type: temporal
+      metadata:
+        endpoint: {{ .Values.temporal.host }}
+        namespace: {{ .Values.temporal.namespace }}
+        taskQueue: {{ .Values.temporal.taskQueue }}
+        targetTasksPerWorker: {{ .Values.worker.targetTasksPerWorker | quote }}

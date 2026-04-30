@@ -1,0 +1,169 @@
+amends "package://pkg.pkl-lang.org/github.com/atlanhq/application-toolkit@0.1.0#/Application.pkl"
+
+import "package://pkg.pkl-lang.org/github.com/atlanhq/application-toolkit@0.1.0#/Config.pkl" as Config
+
+// Connector metadata
+name = "github"
+label = "GitHub"
+description = "Extract repositories, wikis, YAML files, and SBOMs from GitHub"
+category = "git"
+logo = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+connectorType = "source"
+certified = false
+previewStatus = false
+
+// Credential type definition
+credentialType {
+  type = "github_token"
+  name = "GitHub Personal Access Token"
+  description = "Authenticates with GitHub using a personal access token"
+  fields {
+    ["token"] {
+      type = "password"
+      label = "Personal Access Token"
+      required = true
+      helpText = "GitHub PAT with repo and read:org scopes"
+    }
+  }
+}
+
+// Workflow form configuration
+form {
+  // Step 1: Authentication
+  ["auth"] {
+    label = "Authentication"
+    description = "Configure GitHub authentication"
+    properties {
+      ["credential"] = new Config.CredentialInput {
+        label = "GitHub Credential"
+        required = true
+        anyOf {
+          ["github_token"] = "GitHub Personal Access Token"
+        }
+        helpText = "Select a GitHub credential or create a new one"
+      }
+      ["extraction-method"] = new Config.TextInput {
+        label = "Extraction Method"
+        default = "direct"
+        required = true
+        hidden = true
+      }
+    }
+  }
+
+  // Step 2: Preflight
+  ["preflight"] {
+    label = "Preflight Check"
+    description = "Validate GitHub access and permissions"
+    properties {
+      ["check-status"] = new Config.TextInput {
+        label = "Preflight Status"
+        required = false
+        readOnly = true
+        helpText = "Results of the preflight validation"
+      }
+    }
+  }
+
+  // Step 3: Metadata
+  ["metadata"] {
+    label = "Extraction Configuration"
+    description = "Configure what to extract from GitHub"
+    properties {
+      ["organization"] = new Config.TextInput {
+        label = "Organization Name"
+        required = true
+        helpText = "GitHub organization or user account to extract from"
+        placeholder = "e.g., atlanhq"
+      }
+      ["repositories"] = new Config.MultiTextInput {
+        label = "Repositories"
+        required = false
+        helpText = "Specific repositories to extract (leave empty for all). One per line."
+        placeholder = "repo1\nrepo2\nrepo3"
+      }
+      ["extract_wiki"] = new Config.Switch {
+        label = "Extract Wiki Pages"
+        default = false
+        helpText = "Clone and index wiki pages from repositories"
+      }
+      ["extract_yaml"] = new Config.Switch {
+        label = "Extract YAML Files"
+        default = false
+        helpText = "Extract and index YAML configuration files"
+      }
+      ["extract_sbom"] = new Config.Switch {
+        label = "Extract SBOM (Software Bill of Materials)"
+        default = false
+        helpText = "Generate and extract dependency graphs using GitHub's SBOM API"
+      }
+      ["sbom_poll_interval_seconds"] = new Config.NumberInput {
+        label = "SBOM Poll Interval (seconds)"
+        default = 15
+        required = false
+        hidden = true
+        helpText = "How often to check SBOM generation status"
+      }
+      ["preflight-check"] = new Config.Switch {
+        label = "Run Preflight Check"
+        default = true
+        required = true
+        helpText = "Validate credentials and permissions before extraction"
+      }
+    }
+  }
+}
+
+// Task DAG definition
+tasks {
+  ["extract"] {
+    label = "Extract GitHub Metadata"
+    description = "Fetch repositories, wikis, YAML files, and SBOMs from GitHub"
+    type = "metadata"
+    outputs {
+      ["repos_file"] = "File reference containing repository data"
+      ["wiki_file"] = "File reference containing wiki page data"
+      ["yaml_file"] = "File reference containing YAML file data"
+      ["sbom_file"] = "File reference containing SBOM dependency data"
+      ["extraction_summary"] = "Summary of extraction results"
+    }
+  }
+
+  ["transform"] {
+    label = "Transform to Atlan Assets"
+    description = "Map GitHub data to Atlan asset types"
+    type = "metadata"
+    dependencies = List("extract")
+    inputs {
+      ["repos_file"] = "$.extract.outputs.repos_file"
+      ["wiki_file"] = "$.extract.outputs.wiki_file"
+      ["yaml_file"] = "$.extract.outputs.yaml_file"
+      ["sbom_file"] = "$.extract.outputs.sbom_file"
+    }
+    outputs {
+      ["assets_created"] = "Count of assets created"
+      ["assets_updated"] = "Count of assets updated"
+    }
+  }
+
+  ["publish"] {
+    label = "Publish to Atlan"
+    description = "Write transformed assets to Atlan"
+    type = "publish"
+    dependencies = List("transform")
+  }
+}
+
+// Default configuration
+defaults {
+  ["auth"] {
+    ["extraction-method"] = "direct"
+  }
+  ["metadata"] {
+    ["extract_wiki"] = false
+    ["extract_yaml"] = false
+    ["extract_sbom"] = false
+    ["sbom_poll_interval_seconds"] = 15
+    ["preflight-check"] = true
+  }
+}

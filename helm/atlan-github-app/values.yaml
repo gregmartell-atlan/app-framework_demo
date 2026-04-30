@@ -1,0 +1,112 @@
+# Default values for atlan-github-app Helm chart
+# This follows ADR-0009 handler/worker split architecture
+
+# Container image
+image:
+  repository: registry.atlan.com/public/atlan-github-app
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Handler deployment (HTTP API server)
+handler:
+  replicas: 1
+  port: 8000
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+
+# Worker deployment (Temporal activities)
+worker:
+  # Horizontal autoscaling via KEDA
+  minReplicas: 0
+  maxReplicas: 10
+
+  # KEDA target: 5 tasks per worker
+  targetTasksPerWorker: "5"
+
+  healthPort: 8081  # Separate health port for workers
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8081
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8081
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+
+# Temporal configuration
+temporal:
+  host: temporal-frontend.temporal.svc.cluster.local:7233
+  namespace: atlan-apps
+  taskQueue: github-task-queue
+
+# Environment variables (ADR-0009 contract)
+env:
+  ATLAN_APP_MODULE: app.connector:GitHubConnector
+  ATLAN_LOG_LEVEL: INFO
+  OTEL_SERVICE_NAME: atlan-github-app
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4317
+
+# Service configuration (for handler)
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+# KEDA ScaledObject configuration (for worker autoscaling)
+keda:
+  pollingInterval: 15  # seconds
+  cooldownPeriod: 300  # 5 minutes
+
+# Pod annotations
+podAnnotations: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}

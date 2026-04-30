@@ -1,0 +1,90 @@
+{
+  "auth": {
+    "label": "Authentication",
+    "description": "Configure GitHub authentication",
+    "properties": {
+      "credential": {
+        "type": "credential",
+        "label": "GitHub Credential",
+        "required": true,
+        "anyOf": {
+          "github_token": "GitHub Personal Access Token"
+        },
+        "helpText": "Select a GitHub credential or create a new one"
+      },
+      "extraction-method": {
+        "type": "text",
+        "label": "Extraction Method",
+        "default": "direct",
+        "required": true,
+        "hidden": true
+      }
+    }
+  },
+  "preflight": {
+    "label": "Preflight Check",
+    "description": "Validate GitHub access and permissions",
+    "properties": {
+      "check-status": {
+        "type": "text",
+        "label": "Preflight Status",
+        "required": false,
+        "readOnly": true,
+        "helpText": "Results of the preflight validation"
+      }
+    }
+  },
+  "metadata": {
+    "label": "Extraction Configuration",
+    "description": "Configure what to extract from GitHub",
+    "properties": {
+      "organization": {
+        "type": "text",
+        "label": "Organization Name",
+        "required": true,
+        "helpText": "GitHub organization or user account to extract from",
+        "placeholder": "e.g., atlanhq"
+      },
+      "repositories": {
+        "type": "multitext",
+        "label": "Repositories",
+        "required": false,
+        "helpText": "Specific repositories to extract (leave empty for all). One per line.",
+        "placeholder": "repo1\nrepo2\nrepo3"
+      },
+      "extract_wiki": {
+        "type": "switch",
+        "label": "Extract Wiki Pages",
+        "default": false,
+        "helpText": "Clone and index wiki pages from repositories"
+      },
+      "extract_yaml": {
+        "type": "switch",
+        "label": "Extract YAML Files",
+        "default": false,
+        "helpText": "Extract and index YAML configuration files"
+      },
+      "extract_sbom": {
+        "type": "switch",
+        "label": "Extract SBOM (Software Bill of Materials)",
+        "default": false,
+        "helpText": "Generate and extract dependency graphs using GitHub's SBOM API"
+      },
+      "sbom_poll_interval_seconds": {
+        "type": "number",
+        "label": "SBOM Poll Interval (seconds)",
+        "default": 15,
+        "required": false,
+        "hidden": true,
+        "helpText": "How often to check SBOM generation status"
+      },
+      "preflight-check": {
+        "type": "switch",
+        "label": "Run Preflight Check",
+        "default": true,
+        "required": true,
+        "helpText": "Validate credentials and permissions before extraction"
+      }
+    }
+  }
+}

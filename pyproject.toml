@@ -13,6 +13,8 @@ dependencies = [
     "httpx>=0.27,<0.29",
     "pydantic>=2.7,<3",
     "pyatlan-v9>=2.0,<3",
+    # Git operations for wiki cloning (v3 compliance rule 11)
+    "GitPython>=3.1,<4",
 ]
 
 [dependency-groups]
@@ -66,7 +68,7 @@ markers = [
 [tool.poe.tasks]
 # Generate workflow / credential / manifest / _input.py from contract/app.pkl.
 # Run on every contract change; CI fails on `git diff` after `poe generate`.
-generate.shell = "cd contract && pkl eval -m generated app.pkl && mkdir -p ../app/generated && mv generated/*.json ../app/generated/ && [ -f generated/_input.py ] && mv generated/_input.py ../app/generated/_input.py || true"
+generate.shell = "cd contract && pkl eval -m ../app/generated app.pkl && mv ../app/generated/input.py ../app/generated/_input.py"
 
 # Static checker bundled with application-sdk — exits 0 only on full v3 compliance.
 check-v3 = "python -m tools.migrate_v3.check_migration --no-color app/"

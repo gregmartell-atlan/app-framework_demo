@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "atlan-github-app.fullname" . }}-handler
+  labels:
+    app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: handler
+spec:
+  replicas: {{ .Values.handler.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: handler
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: handler
+    spec:
+      containers:
+        - name: handler
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--mode"
+            - "handler"
+          ports:
+            - name: http
+              containerPort: {{ .Values.handler.port }}
+              protocol: TCP
+          env:
+            - name: ATLAN_APP_MODULE
+              value: {{ .Values.env.ATLAN_APP_MODULE | quote }}
+            - name: ATLAN_TEMPORAL_HOST
+              value: {{ .Values.temporal.host | quote }}
+            - name: ATLAN_TEMPORAL_NAMESPACE
+              value: {{ .Values.temporal.namespace | quote }}
+            - name: ATLAN_TASK_QUEUE
+              value: {{ .Values.temporal.taskQueue | quote }}
+            - name: ATLAN_HANDLER_PORT
+              value: {{ .Values.handler.port | quote }}
+            - name: ATLAN_LOG_LEVEL
+              value: {{ .Values.env.ATLAN_LOG_LEVEL | quote }}
+            - name: K8S_NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.env.OTEL_EXPORTER_OTLP_ENDPOINT | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.env.OTEL_SERVICE_NAME | quote }}
+          livenessProbe:
+            {{- toYaml .Values.handler.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.handler.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.handler.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "atlan-github-app.fullname" . }}-handler
+  labels:
+    app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: handler
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: handler
