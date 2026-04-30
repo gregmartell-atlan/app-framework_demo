@@ -91,7 +91,25 @@ class GitHubExtractionInput(BaseModel):
     extract_sbom: bool = Field(default=False, description="Extract SBOM dependencies")
     sbom_poll_interval_seconds: int = Field(default=15, description="SBOM polling interval")
     credential: dict = Field(..., description="GitHub credential")
-    connection_qualified_name: str = Field(..., description="Atlan connection QN")
+    connection_qualified_name: str = Field(
+        ...,
+        description=(
+            "Atlan connection QN. v1 uses the 'app' connector "
+            "(default/app/{ts}); v2 uses the 'github' connector "
+            "(default/github/{ts}). Must match the typedef_version used."
+        ),
+    )
+    typedef_version: Literal["v1", "v2"] = Field(
+        default="v1",
+        description=(
+            "Which typedef set to emit. 'v1' uses pyatlan_v9 built-in types "
+            "(Application / ApplicationField / Readme / Process) — works on "
+            "any tenant today. 'v2' uses the GitHubV01 custom typedefs "
+            "(Repository / WikiPage / YAMLFile / SbomPackage / SbomDependency) "
+            "and requires the atlanhq/models PR to be seeded on the target "
+            "tenant first. See typedef reference §4 Phase F."
+        ),
+    )
     max_items: MaxItems = Field(default_factory=MaxItems, description="Pagination limits")
     wiki_content_mode: Literal["index", "full", "parse"] = Field(
         default="index",
@@ -192,6 +210,10 @@ class TransformInput(BaseModel):
     yaml_file: Optional[FileReference] = Field(None, description="YAML files data file")
     sbom_file: Optional[FileReference] = Field(None, description="SBOM dependencies data file")
     connection_qualified_name: str = Field(..., description="Atlan connection QN")
+    typedef_version: Literal["v1", "v2"] = Field(
+        default="v1",
+        description="Typedef set to emit. Must match extraction-side typedef_version.",
+    )
     wiki_content_mode: Literal["index", "full", "parse"] = Field(
         default="index",
         description="Wiki content mode — must match the value used during extraction.",
