@@ -18,9 +18,11 @@ Attribute reference (pyatlan_v9 Application / ApplicationField):
 """
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
+import yaml as _yaml
 from pyatlan_v9.model.assets import Application, ApplicationField, Process, Readme
 
 from app.api_types import RepoRecord, WikiPageRecord, YamlFileRecord, SbomDependencyRecord
@@ -105,6 +107,89 @@ def map_repository(repo: RepoRecord, connection_qn: str) -> Application:
     return app
 
 
+def _parse_wiki_structured(content: str) -> dict:
+    """Extract structured catalog fields from wiki markdown.
+
+    Checks two conventions in order:
+    1. YAML frontmatter  (--- key: value --- block at top of page)
+    2. ## Header patterns  (## Owner\\nvalue\\n, ## Domain\\nvalue\\n, …)
+
+    Returns a dict with any of: owner, domain, description, tags (list[str]).
+    Unknown keys are ignored so callers don't have to guard every field.
+    """
+    result: dict = {}
+
+    # 1. YAML frontmatter
+    if content.lstrip().startswith("---"):
+        body = content.lstrip()
+        end = body.find("---", 3)
+        if end != -1:
+            try:
+                fm = _yaml.safe_load(body[3:end])
+                if isinstance(fm, dict):
+                    result.update({k: v for k, v in fm.items() if v is not None})
+            except Exception:
+                pass
+
+    # 2. ## Header patterns (supplement / override frontmatter)
+    catalog_keys = {"owner", "domain", "description", "tags", "steward", "team"}
+    for match in re.finditer(r"^##\s+(\w[\w\s]*\w|\w)\s*\n([^\n#]+)", content, re.MULTILINE):
+        key = match.group(1).strip().lower().replace(" ", "_")
+        value = match.group(2).strip()
+        if key in catalog_keys and value:
+            result[key] = value
+
+    # Normalise tags to list[str]
+    if "tags" in result and isinstance(result["tags"], str):
+        result["tags"] = [t.strip() for t in result["tags"].split(",") if t.strip()]
+
+    return result
+
+
+def _parse_yaml_catalog(content: str) -> dict:
+    """Extract catalog metadata fields from YAML content.
+
+    Recognises common catalog-manifest key names used by teams who keep
+    schema.yaml / catalog.yaml / ownership.yaml files in git:
+
+        owner / team / maintainer  → owner
+        domain / domain_area / business_domain → domain
+        description / summary / purpose → description
+        tags / labels  → tags (list[str])
+
+    Returns only keys that have non-None values so callers can use .get().
+    Falls back gracefully to {} on parse errors or non-dict YAML.
+    """
+    try:
+        data = _yaml.safe_load(content)
+    except Exception:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+
+    def _first(*keys):
+        for k in keys:
+            if data.get(k):
+                return data[k]
+        return None
+
+    owner = _first("owner", "team", "maintainer")
+    domain = _first("domain", "domain_area", "business_domain")
+    description = _first("description", "summary", "purpose")
+    tags = _first("tags", "labels")
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",") if t.strip()]
+    elif not isinstance(tags, list):
+        tags = None
+
+    return {k: v for k, v in {
+        "owner": owner,
+        "domain": domain,
+        "description": description,
+        "tags": tags,
+    }.items() if v is not None}
+
+
 def map_readme(repo: RepoRecord, readme_content: str, connection_qn: str) -> Readme:
     """Map a repository's README to an Atlan Readme asset.
 
@@ -129,16 +214,28 @@ def map_readme(repo: RepoRecord, readme_content: str, connection_qn: str) -> Rea
     return readme
 
 
-def map_wiki_page(page: WikiPageRecord, connection_qn: str) -> ApplicationField:
+def map_wiki_page(
+    page: WikiPageRecord,
+    connection_qn: str,
+    content_mode: str = "index",
+) -> ApplicationField:
     """Map a GitHub wiki page to an Atlan ApplicationField asset.
 
     - app_id       → git blob SHA (stable unique source ID for this page version)
-    - description  → truncated page content (first 500 chars)
-    - user_description → "wiki_page | {repo_full_name}"
+    - description  → controlled by content_mode (see below)
+    - user_description → "wiki_page | {repo_full_name}" (plus parsed fields in parse mode)
+
+    content_mode values:
+        "index" — truncates content to 500 chars (default, low storage cost)
+        "full"  — stores complete markdown content
+        "parse" — extracts structured fields from YAML frontmatter or ## Header
+                  patterns (owner, domain, tags) and maps to Atlan attributes;
+                  falls back to full content if no structure found
 
     Args:
         page: Wiki page record
         connection_qn: Atlan connection qualified name
+        content_mode: One of "index", "full", "parse"
 
     Returns:
         ApplicationField asset representing the wiki page
@@ -154,22 +251,52 @@ def map_wiki_page(page: WikiPageRecord, connection_qn: str) -> ApplicationField:
     )
     field.qualified_name = page_qn
     field.app_id = page.file_sha
-    field.description = page.content[:500] + ("..." if len(page.content) > 500 else "")
-    field.user_description = f"wiki_page | {page.repo_full_name}"
+
+    if content_mode == "full":
+        field.description = page.content
+        field.user_description = f"wiki_page | {page.repo_full_name}"
+
+    elif content_mode == "parse":
+        parsed = _parse_wiki_structured(page.content)
+        field.description = parsed.get("description") or page.content
+        ud_parts = [f"wiki_page | {page.repo_full_name}"]
+        if parsed.get("owner"):
+            ud_parts.append(f"owner={parsed['owner']}")
+        if parsed.get("domain"):
+            ud_parts.append(f"domain={parsed['domain']}")
+        field.user_description = " | ".join(ud_parts)
+        if parsed.get("tags"):
+            field.asset_tags = [str(t) for t in parsed["tags"]]
+
+    else:  # index (default)
+        field.description = page.content[:500] + ("..." if len(page.content) > 500 else "")
+        field.user_description = f"wiki_page | {page.repo_full_name}"
 
     return field
 
 
-def map_yaml_file(yaml: YamlFileRecord, connection_qn: str) -> ApplicationField:
+def map_yaml_file(
+    yaml: YamlFileRecord,
+    connection_qn: str,
+    content_mode: str = "index",
+) -> ApplicationField:
     """Map a YAML configuration file to an Atlan ApplicationField asset.
 
     - app_id       → git blob SHA
-    - description  → "YAML configuration file: {file_path}"
-    - user_description → "config_file | yaml | {repo_full_name}"
+    - description  → controlled by content_mode (see below)
+    - user_description → "config_file | yaml | {repo_full_name}" (plus parsed fields)
+
+    content_mode values:
+        "index" — stores "YAML configuration file: {path}" as description (default)
+        "full"  — stores the complete raw YAML content as description
+        "parse" — extracts catalog metadata keys (owner, domain, description, tags)
+                  from the YAML and maps them to Atlan attributes; ideal for
+                  catalog.yaml / schema.yaml / ownership.yaml patterns
 
     Args:
         yaml: YAML file record
         connection_qn: Atlan connection qualified name
+        content_mode: One of "index", "full", "parse"
 
     Returns:
         ApplicationField asset representing the YAML file
@@ -185,8 +312,26 @@ def map_yaml_file(yaml: YamlFileRecord, connection_qn: str) -> ApplicationField:
     )
     field.qualified_name = yaml_qn
     field.app_id = yaml.file_sha
-    field.description = f"YAML configuration file: {yaml.file_path}"
-    field.user_description = f"config_file | yaml | {yaml.repo_full_name}"
+
+    if content_mode == "full":
+        field.description = yaml.content
+        field.user_description = f"config_file | yaml | {yaml.repo_full_name}"
+
+    elif content_mode == "parse":
+        parsed = _parse_yaml_catalog(yaml.content)
+        field.description = parsed.get("description") or f"YAML configuration file: {yaml.file_path}"
+        ud_parts = [f"config_file | yaml | {yaml.repo_full_name}"]
+        if parsed.get("owner"):
+            ud_parts.append(f"owner={parsed['owner']}")
+        if parsed.get("domain"):
+            ud_parts.append(f"domain={parsed['domain']}")
+        field.user_description = " | ".join(ud_parts)
+        if parsed.get("tags"):
+            field.asset_tags = [str(t) for t in parsed["tags"]]
+
+    else:  # index (default)
+        field.description = f"YAML configuration file: {yaml.file_path}"
+        field.user_description = f"config_file | yaml | {yaml.repo_full_name}"
 
     return field
 

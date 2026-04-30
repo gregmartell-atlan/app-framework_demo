@@ -287,7 +287,7 @@ class GitHubConnector(App):
                 for line in f:
                     page_data = json.loads(line)
                     page = WikiPageRecord(**page_data)
-                    asset = map_wiki_page(page, conn_qn)
+                    asset = map_wiki_page(page, conn_qn, content_mode=input.wiki_content_mode)
 
                     response = atlan_client.asset.save(asset)
                     assets_created += 1
@@ -299,7 +299,7 @@ class GitHubConnector(App):
                 for line in f:
                     yaml_data = json.loads(line)
                     yaml = YamlFileRecord(**yaml_data)
-                    asset = map_yaml_file(yaml, conn_qn)
+                    asset = map_yaml_file(yaml, conn_qn, content_mode=input.yaml_content_mode)
 
                     response = atlan_client.asset.save(asset)
                     assets_created += 1

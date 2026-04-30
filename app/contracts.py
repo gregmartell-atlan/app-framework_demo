@@ -3,7 +3,7 @@
 All handler and task methods use these typed contracts (no bare Dict/Any at boundaries).
 """
 
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -93,6 +93,26 @@ class GitHubExtractionInput(BaseModel):
     credential: dict = Field(..., description="GitHub credential")
     connection_qualified_name: str = Field(..., description="Atlan connection QN")
     max_items: MaxItems = Field(default_factory=MaxItems, description="Pagination limits")
+    wiki_content_mode: Literal["index", "full", "parse"] = Field(
+        default="index",
+        description=(
+            "How wiki page content is stored in Atlan. "
+            "'index' truncates to 500 chars (default, low storage); "
+            "'full' stores the complete markdown content; "
+            "'parse' extracts structured fields (owner, domain, tags) from "
+            "YAML frontmatter or ## Header patterns and maps them to Atlan attributes."
+        ),
+    )
+    yaml_content_mode: Literal["index", "full", "parse"] = Field(
+        default="index",
+        description=(
+            "How YAML file content is stored in Atlan. "
+            "'index' stores only the file path reference (default); "
+            "'full' stores the complete raw YAML content; "
+            "'parse' extracts catalog metadata keys (owner, domain, description, tags) "
+            "and maps them to Atlan attributes — useful for catalog.yaml / schema.yaml patterns."
+        ),
+    )
 
 
 class GitHubExtractionOutput(BaseModel):
@@ -172,6 +192,14 @@ class TransformInput(BaseModel):
     yaml_file: Optional[FileReference] = Field(None, description="YAML files data file")
     sbom_file: Optional[FileReference] = Field(None, description="SBOM dependencies data file")
     connection_qualified_name: str = Field(..., description="Atlan connection QN")
+    wiki_content_mode: Literal["index", "full", "parse"] = Field(
+        default="index",
+        description="Wiki content mode — must match the value used during extraction.",
+    )
+    yaml_content_mode: Literal["index", "full", "parse"] = Field(
+        default="index",
+        description="YAML content mode — must match the value used during extraction.",
+    )
 
 
 class TransformOutput(BaseModel):
