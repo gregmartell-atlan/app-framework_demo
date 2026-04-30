@@ -175,6 +175,116 @@ def wiki_page_typedef() -> dict:
     }
 
 
+def yaml_file_typedef() -> dict:
+    return {
+        "entityDefs": [{
+            "name": "GitHubV01YAMLFile",
+            "category": "ENTITY",
+            "description": "A YAML configuration or catalog file in a GitHub repository.",
+            "serviceType": "atlan",
+            "typeVersion": "1.0",
+            "superTypes": ["GitHubV01"],
+            "attributeDefs": [
+                _str_attr("gitHubV01YamlPath", "Path of the YAML file within the repository."),
+                _str_attr("gitHubV01YamlSchemaPath", "JSON-Schema reference declared in the YAML, if present."),
+                _str_attr("gitHubV01YamlOwner", "Owner declared in the YAML body (raw, verbatim from source)."),
+                _str_attr("gitHubV01YamlDomain", "Domain declared in the YAML body (raw, verbatim from source). Canonical resolution to a DataDomain is handled by a downstream enrichment job."),
+                _str_attr("gitHubV01YamlTags", "Tags declared in the YAML body.", multi=True),
+                _str_attr("gitHubV01YamlBlobSha", "Git blob SHA — stable identifier for this version of the file."),
+            ],
+        }],
+    }
+
+
+def sbom_dependency_typedef() -> dict:
+    return {
+        "entityDefs": [{
+            "name": "GitHubV01SbomDependency",
+            "category": "ENTITY",
+            "description": "A DEPENDS_ON edge between two SBOM packages.",
+            "serviceType": "atlan",
+            "typeVersion": "1.0",
+            "superTypes": ["GitHubV01"],
+            "attributeDefs": [
+                _str_attr("gitHubV01DependencyScope", "Scope of the dependency (runtime, dev, optional, etc)."),
+            ],
+        }],
+    }
+
+
+def sbom_ecosystem_enum() -> dict:
+    return {
+        "enumDefs": [{
+            "name": "GitHubV01SbomEcosystem",
+            "category": "ENUM",
+            "description": "Package ecosystem for an SBOM dependency.",
+            "serviceType": "atlas_core",
+            "typeVersion": "1.0",
+            "elementDefs": [
+                {"ordinal": i, "value": v, "description": d}
+                for i, (v, d) in enumerate([
+                    ("PYPI", "Python Package Index."),
+                    ("NPM", "Node Package Manager."),
+                    ("MAVEN", "Maven Central."),
+                    ("GO", "Go modules."),
+                    ("CARGO", "Rust Cargo."),
+                    ("RUBYGEMS", "Ruby Gems."),
+                    ("NUGET", "NuGet (.NET)."),
+                    ("DOCKER", "Docker / OCI image."),
+                    ("OTHER", "Other or unknown ecosystem."),
+                ])
+            ],
+        }],
+    }
+
+
+def relationship_defs() -> dict:
+    """Containment relationships emit into a separate _relationships.json file."""
+    def _containment(name, parent_type, parent_attr, parent_desc, child_type, child_attr, child_desc):
+        return {
+            "name": name,
+            "category": "RELATIONSHIP",
+            "serviceType": "atlan",
+            "typeVersion": "1.0",
+            "relationshipCategory": "AGGREGATION",
+            "propagateTags": "NONE",
+            "endDef1": {
+                "type": parent_type, "name": child_attr,
+                "isContainer": True, "cardinality": "SET",
+                "isLegacyAttribute": False, "description": child_desc,
+            },
+            "endDef2": {
+                "type": child_type, "name": parent_attr,
+                "isContainer": False, "cardinality": "SINGLE",
+                "isLegacyAttribute": False, "description": parent_desc,
+            },
+        }
+    return {
+        "relationshipDefs": [
+            _containment(
+                "github_v01_repository_and_its_wiki_pages",
+                "GitHubV01Repository", "repository", "Repository containing the wiki page.",
+                "GitHubV01WikiPage", "wikiPages", "Wiki pages contained within this repository.",
+            ),
+            _containment(
+                "github_v01_repository_and_its_yaml_files",
+                "GitHubV01Repository", "repository", "Repository containing the YAML file.",
+                "GitHubV01YAMLFile", "yamlFiles", "YAML files contained within this repository.",
+            ),
+            _containment(
+                "github_v01_repository_and_its_sbom_packages",
+                "GitHubV01Repository", "repository", "Repository declaring the SBOM package.",
+                "GitHubV01SbomPackage", "sbomPackages", "SBOM packages declared by this repository.",
+            ),
+            _containment(
+                "github_v01_sbom_package_dependencies",
+                "GitHubV01SbomPackage", "dependsOn", "Package that depends on others.",
+                "GitHubV01SbomDependency", "outgoingDependencies", "Outgoing DEPENDS_ON edges from this package.",
+            ),
+        ],
+    }
+
+
 def sbom_package_typedef() -> dict:
     return {
         "entityDefs": [{
@@ -250,6 +360,51 @@ def sample_wiki() -> WikiPageRecord:
     )
 
 
+def sample_yaml() -> YamlFileRecord:
+    content = (
+        "# Catalog manifest for the orders dataset\n"
+        "owner: data-platform-team\n"
+        "domain: commerce\n"
+        "description: Aggregated customer orders, refreshed nightly.\n"
+        "tags: [orders, transactions, pii]\n"
+        "schema: https://schemas.atlan.com/catalog/v1.json\n"
+    )
+    return YamlFileRecord(
+        repo_full_name="atlanhq/atlan-context-studio-app",
+        file_path="catalog/orders.yaml",
+        content=content,
+        file_sha="9z8y7x6w5v",
+        file_size_bytes=len(content.encode()),
+    )
+
+
+def sample_sbom_parent() -> SbomDependencyRecord:
+    return SbomDependencyRecord(
+        repo_full_name="atlanhq/atlan-context-studio-app",
+        spdx_id="SPDXRef-Package-pip-app-1.0.0",
+        package_name="atlan-context-studio-app",
+        package_version="1.0.0",
+        purl=None,
+        license_concluded=None, license_declared=None,
+        supplier=None, download_location=None,
+        relationship_type="PACKAGE", parent_spdx_id=None,
+    )
+
+
+def sample_sbom_edge_child() -> SbomDependencyRecord:
+    return SbomDependencyRecord(
+        repo_full_name="atlanhq/atlan-context-studio-app",
+        spdx_id="SPDXRef-Package-pip-pyatlan-9.6.0",
+        package_name="pyatlan",
+        package_version="9.6.0",
+        purl="pkg:pypi/pyatlan@9.6.0",
+        license_concluded="Apache-2.0", license_declared="Apache-2.0",
+        supplier=None, download_location=None,
+        relationship_type="DEPENDS_ON",
+        parent_spdx_id="SPDXRef-Package-pip-app-1.0.0",
+    )
+
+
 def sample_sbom_pkg() -> SbomDependencyRecord:
     return SbomDependencyRecord(
         repo_full_name="atlanhq/atlan-context-studio-app",
@@ -271,18 +426,27 @@ def sample_sbom_pkg() -> SbomDependencyRecord:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def show_json(label: str, payload: dict):
+    print()
+    print(f"  ── {label} ──")
+    print()
+    for line in json.dumps(payload, indent=2).splitlines():
+        print(f"    {line}")
+
+
 def main():
     repo = sample_repo()
     wiki = sample_wiki()
+    yaml = sample_yaml()
     pkg = sample_sbom_pkg()
+    parent_pkg = sample_sbom_parent()
+    child_pkg = sample_sbom_edge_child()
 
     banner("1. GitHubV01Repository — typedef JSON + entity payload")
     show_pair(repository_typedef(), map_repository_v2(repo, CONN_QN))
 
     banner("2. GitHubV01RepoVisibility — enum JSON")
-    print()
-    for line in json.dumps(repo_visibility_enum(), indent=2).splitlines():
-        print(f"    {line}")
+    show_json("GitHubV01RepoVisibility.json", repo_visibility_enum())
 
     banner("3. GitHubV01WikiPage — typedef JSON + entity payload (parse mode)")
     show_pair(
@@ -290,8 +454,26 @@ def main():
         map_wiki_page_v2(wiki, CONN_QN, content_mode="parse"),
     )
 
-    banner("4. GitHubV01SbomPackage — typedef JSON + entity payload")
+    banner("4. GitHubV01YAMLFile — typedef JSON + entity payload (parse mode)")
+    show_pair(
+        yaml_file_typedef(),
+        map_yaml_file_v2(yaml, CONN_QN, content_mode="parse"),
+    )
+
+    banner("5. GitHubV01SbomPackage — typedef JSON + entity payload")
     show_pair(sbom_package_typedef(), map_sbom_package_v2(pkg, CONN_QN))
+
+    banner("6. GitHubV01SbomEcosystem — enum JSON")
+    show_json("GitHubV01SbomEcosystem.json", sbom_ecosystem_enum())
+
+    banner("7. GitHubV01SbomDependency — typedef JSON + entity payload (DEPENDS_ON edge)")
+    show_pair(
+        sbom_dependency_typedef(),
+        map_sbom_dependency_edge_v2(child_pkg, parent_pkg, CONN_QN),
+    )
+
+    banner("8. Relationship defs — GitHub_relationships.json")
+    show_json("GitHub_relationships.json (4 containment relationships)", relationship_defs())
 
     banner("VERDICT", "═")
     print("""

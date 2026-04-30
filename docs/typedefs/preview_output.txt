@@ -1,0 +1,828 @@
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ 1. GitHubV01Repository — typedef JSON + entity payload
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  ── (A) Rendered typedef JSON  (atlas/entityDefs/.../<TypeName>.json) ──
+
+    {
+      "entityDefs": [
+        {
+          "name": "GitHubV01Repository",
+          "category": "ENTITY",
+          "description": "A GitHub repository.",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "superTypes": [
+            "GitHubV01"
+          ],
+          "attributeDefs": [
+            {
+              "name": "gitHubV01RepositoryUrl",
+              "description": "HTML URL of the repository.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01DefaultBranch",
+              "description": "Name of the repository's default branch.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01Visibility",
+              "description": "Repository visibility (public / private / internal).",
+              "typeName": "GitHubV01RepoVisibility",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01PrimaryLanguage",
+              "description": "Dominant language detected by GitHub.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01StarCount",
+              "description": "Number of stargazers.",
+              "typeName": "long",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01ForkCount",
+              "description": "Number of forks.",
+              "typeName": "long",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01OpenIssueCount",
+              "description": "Open issues + pull requests.",
+              "typeName": "long",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01TopicTags",
+              "description": "GitHub topic tags applied to the repository.",
+              "typeName": "array<string>",
+              "isOptional": true,
+              "cardinality": "SET",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01RepoCreatedAt",
+              "description": "Repository creation timestamp (epoch ms).",
+              "typeName": "date",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01RepoUpdatedAt",
+              "description": "Repository last-pushed timestamp (epoch ms). Sourced from GitHub `pushed_at` for code-currency accuracy.",
+              "typeName": "date",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01IsArchived",
+              "description": "Whether the repository is archived (read-only on GitHub).",
+              "typeName": "boolean",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            }
+          ]
+        }
+      ]
+    }
+
+  ── (B) Entity payload emitted by the connector  (POST /api/meta/entity/bulk) ──
+
+    {
+      "typeName": "GitHubV01Repository",
+      "attributes": {
+        "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app",
+        "name": "atlan-context-studio-app",
+        "connectionQualifiedName": "default/github/1700000000",
+        "displayName": "atlanhq/atlan-context-studio-app",
+        "description": "Building an app on Atlan framework to showcase semantic view evals framework.",
+        "sourceURL": "https://github.com/atlanhq/atlan-context-studio-app",
+        "sourceCreatedBy": "atlanhq",
+        "sourceCreatedAt": 1762743962000,
+        "sourceUpdatedAt": 1777549455000,
+        "isDiscoverable": false,
+        "gitHubV01RepositoryName": "atlan-context-studio-app",
+        "gitHubV01RepositoryQualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app",
+        "gitHubV01RepositoryOrg": "atlanhq",
+        "gitHubV01RepositoryUrl": "https://github.com/atlanhq/atlan-context-studio-app",
+        "gitHubV01DefaultBranch": "main",
+        "gitHubV01Visibility": "PRIVATE",
+        "gitHubV01PrimaryLanguage": "Python",
+        "gitHubV01StarCount": 4,
+        "gitHubV01ForkCount": 0,
+        "gitHubV01OpenIssueCount": 26,
+        "gitHubV01TopicTags": [
+          "semantic-views",
+          "evals",
+          "atlan-app"
+        ],
+        "gitHubV01RepoCreatedAt": 1762743962000,
+        "gitHubV01RepoUpdatedAt": 1777549455000,
+        "gitHubV01IsArchived": false
+      }
+    }
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ 2. GitHubV01RepoVisibility — enum JSON
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  ── GitHubV01RepoVisibility.json ──
+
+    {
+      "enumDefs": [
+        {
+          "name": "GitHubV01RepoVisibility",
+          "category": "ENUM",
+          "description": "Visibility level of a GitHub repository.",
+          "serviceType": "atlas_core",
+          "typeVersion": "1.0",
+          "elementDefs": [
+            {
+              "ordinal": 0,
+              "value": "PUBLIC",
+              "description": "Publicly visible repository."
+            },
+            {
+              "ordinal": 1,
+              "value": "PRIVATE",
+              "description": "Visible only to org members or collaborators."
+            },
+            {
+              "ordinal": 2,
+              "value": "INTERNAL",
+              "description": "Visible only to enterprise members (GitHub Enterprise)."
+            }
+          ]
+        }
+      ]
+    }
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ 3. GitHubV01WikiPage — typedef JSON + entity payload (parse mode)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  ── (A) Rendered typedef JSON  (atlas/entityDefs/.../<TypeName>.json) ──
+
+    {
+      "entityDefs": [
+        {
+          "name": "GitHubV01WikiPage",
+          "category": "ENTITY",
+          "description": "A wiki page or repo Markdown document.",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "superTypes": [
+            "GitHubV01"
+          ],
+          "attributeDefs": [
+            {
+              "name": "gitHubV01WikiPath",
+              "description": "Path of the wiki page within the wiki tree.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01WikiFrontmatterOwner",
+              "description": "Owner declared in YAML frontmatter (raw, verbatim from source).",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01WikiFrontmatterDomain",
+              "description": "Domain declared in YAML frontmatter (raw, verbatim from source). Canonical resolution to a DataDomain is handled by a downstream enrichment job.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01WikiFrontmatterTags",
+              "description": "Tags declared in YAML frontmatter.",
+              "typeName": "array<string>",
+              "isOptional": true,
+              "cardinality": "SET",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01WikiBlobSha",
+              "description": "Git blob SHA \u2014 stable identifier for this version of the page.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            }
+          ]
+        }
+      ]
+    }
+
+  ── (B) Entity payload emitted by the connector  (POST /api/meta/entity/bulk) ──
+
+    {
+      "typeName": "GitHubV01WikiPage",
+      "attributes": {
+        "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app/wiki/Customer-Orders.md",
+        "name": "Customer Orders",
+        "connectionQualifiedName": "default/github/1700000000",
+        "description": "---\nowner: data-platform-team\ndomain: commerce\ntags: [orders, transactions, pii]\n---\n# Customer Orders\nAggregated order data across regions.\n",
+        "gitHubV01RepositoryName": "atlan-context-studio-app",
+        "gitHubV01RepositoryQualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app",
+        "gitHubV01RepositoryOrg": "atlanhq",
+        "gitHubV01WikiPath": "Customer-Orders.md",
+        "gitHubV01WikiBlobSha": "a1b2c3d4e5f6789",
+        "gitHubV01WikiFrontmatterOwner": "data-platform-team",
+        "gitHubV01WikiFrontmatterDomain": "commerce",
+        "gitHubV01WikiFrontmatterTags": [
+          "orders",
+          "transactions",
+          "pii"
+        ]
+      },
+      "relationshipAttributes": {
+        "repository": {
+          "typeName": "GitHubV01Repository",
+          "uniqueAttributes": {
+            "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app"
+          }
+        }
+      }
+    }
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ 4. GitHubV01YAMLFile — typedef JSON + entity payload (parse mode)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  ── (A) Rendered typedef JSON  (atlas/entityDefs/.../<TypeName>.json) ──
+
+    {
+      "entityDefs": [
+        {
+          "name": "GitHubV01YAMLFile",
+          "category": "ENTITY",
+          "description": "A YAML configuration or catalog file in a GitHub repository.",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "superTypes": [
+            "GitHubV01"
+          ],
+          "attributeDefs": [
+            {
+              "name": "gitHubV01YamlPath",
+              "description": "Path of the YAML file within the repository.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01YamlSchemaPath",
+              "description": "JSON-Schema reference declared in the YAML, if present.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01YamlOwner",
+              "description": "Owner declared in the YAML body (raw, verbatim from source).",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01YamlDomain",
+              "description": "Domain declared in the YAML body (raw, verbatim from source). Canonical resolution to a DataDomain is handled by a downstream enrichment job.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01YamlTags",
+              "description": "Tags declared in the YAML body.",
+              "typeName": "array<string>",
+              "isOptional": true,
+              "cardinality": "SET",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01YamlBlobSha",
+              "description": "Git blob SHA \u2014 stable identifier for this version of the file.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            }
+          ]
+        }
+      ]
+    }
+
+  ── (B) Entity payload emitted by the connector  (POST /api/meta/entity/bulk) ──
+
+    {
+      "typeName": "GitHubV01YAMLFile",
+      "attributes": {
+        "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app/yaml/catalog/orders.yaml",
+        "name": "orders.yaml",
+        "connectionQualifiedName": "default/github/1700000000",
+        "description": "Aggregated customer orders, refreshed nightly.",
+        "gitHubV01RepositoryName": "atlan-context-studio-app",
+        "gitHubV01RepositoryQualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app",
+        "gitHubV01RepositoryOrg": "atlanhq",
+        "gitHubV01YamlPath": "catalog/orders.yaml",
+        "gitHubV01YamlBlobSha": "9z8y7x6w5v",
+        "gitHubV01YamlOwner": "data-platform-team",
+        "gitHubV01YamlDomain": "commerce",
+        "gitHubV01YamlTags": [
+          "orders",
+          "transactions",
+          "pii"
+        ]
+      },
+      "relationshipAttributes": {
+        "repository": {
+          "typeName": "GitHubV01Repository",
+          "uniqueAttributes": {
+            "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app"
+          }
+        }
+      }
+    }
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ 5. GitHubV01SbomPackage — typedef JSON + entity payload
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  ── (A) Rendered typedef JSON  (atlas/entityDefs/.../<TypeName>.json) ──
+
+    {
+      "entityDefs": [
+        {
+          "name": "GitHubV01SbomPackage",
+          "category": "ENTITY",
+          "description": "A package declared in a Software Bill of Materials.",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "superTypes": [
+            "GitHubV01"
+          ],
+          "attributeDefs": [
+            {
+              "name": "gitHubV01SbomEcosystem",
+              "description": "Package ecosystem (inferred from purl scheme).",
+              "typeName": "GitHubV01SbomEcosystem",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            },
+            {
+              "name": "gitHubV01SbomVersion",
+              "description": "Version pinned in the SBOM.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01SbomLicense",
+              "description": "Declared or concluded license (SPDX ID).",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01SbomPurl",
+              "description": "Canonical Package URL (purl).",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01SbomSpdxId",
+              "description": "SPDX identifier from the SBOM document.",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            },
+            {
+              "name": "gitHubV01SbomVulnerabilityCount",
+              "description": "Count of known CVEs against this package version (populated by enrichment).",
+              "typeName": "long",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true
+            }
+          ]
+        }
+      ]
+    }
+
+  ── (B) Entity payload emitted by the connector  (POST /api/meta/entity/bulk) ──
+
+    {
+      "typeName": "GitHubV01SbomPackage",
+      "attributes": {
+        "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app/sbom/SPDXRef-Package-pip-pyatlan-9.6.0",
+        "name": "pyatlan",
+        "connectionQualifiedName": "default/github/1700000000",
+        "description": "SBOM package: pyatlan 9.6.0",
+        "sourceURL": "pkg:pypi/pyatlan@9.6.0",
+        "gitHubV01RepositoryName": "atlan-context-studio-app",
+        "gitHubV01RepositoryQualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app",
+        "gitHubV01RepositoryOrg": "atlanhq",
+        "gitHubV01SbomSpdxId": "SPDXRef-Package-pip-pyatlan-9.6.0",
+        "gitHubV01SbomPurl": "pkg:pypi/pyatlan@9.6.0",
+        "gitHubV01SbomVersion": "9.6.0",
+        "gitHubV01SbomLicense": "Apache-2.0",
+        "gitHubV01SbomEcosystem": "PYPI"
+      },
+      "relationshipAttributes": {
+        "repository": {
+          "typeName": "GitHubV01Repository",
+          "uniqueAttributes": {
+            "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app"
+          }
+        }
+      }
+    }
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ 6. GitHubV01SbomEcosystem — enum JSON
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  ── GitHubV01SbomEcosystem.json ──
+
+    {
+      "enumDefs": [
+        {
+          "name": "GitHubV01SbomEcosystem",
+          "category": "ENUM",
+          "description": "Package ecosystem for an SBOM dependency.",
+          "serviceType": "atlas_core",
+          "typeVersion": "1.0",
+          "elementDefs": [
+            {
+              "ordinal": 0,
+              "value": "PYPI",
+              "description": "Python Package Index."
+            },
+            {
+              "ordinal": 1,
+              "value": "NPM",
+              "description": "Node Package Manager."
+            },
+            {
+              "ordinal": 2,
+              "value": "MAVEN",
+              "description": "Maven Central."
+            },
+            {
+              "ordinal": 3,
+              "value": "GO",
+              "description": "Go modules."
+            },
+            {
+              "ordinal": 4,
+              "value": "CARGO",
+              "description": "Rust Cargo."
+            },
+            {
+              "ordinal": 5,
+              "value": "RUBYGEMS",
+              "description": "Ruby Gems."
+            },
+            {
+              "ordinal": 6,
+              "value": "NUGET",
+              "description": "NuGet (.NET)."
+            },
+            {
+              "ordinal": 7,
+              "value": "DOCKER",
+              "description": "Docker / OCI image."
+            },
+            {
+              "ordinal": 8,
+              "value": "OTHER",
+              "description": "Other or unknown ecosystem."
+            }
+          ]
+        }
+      ]
+    }
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ 7. GitHubV01SbomDependency — typedef JSON + entity payload (DEPENDS_ON edge)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  ── (A) Rendered typedef JSON  (atlas/entityDefs/.../<TypeName>.json) ──
+
+    {
+      "entityDefs": [
+        {
+          "name": "GitHubV01SbomDependency",
+          "category": "ENTITY",
+          "description": "A DEPENDS_ON edge between two SBOM packages.",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "superTypes": [
+            "GitHubV01"
+          ],
+          "attributeDefs": [
+            {
+              "name": "gitHubV01DependencyScope",
+              "description": "Scope of the dependency (runtime, dev, optional, etc).",
+              "typeName": "string",
+              "isOptional": true,
+              "cardinality": "SINGLE",
+              "isUnique": false,
+              "isIndexable": false,
+              "includeInNotification": true,
+              "skipScrubbing": true,
+              "indexType": "STRING"
+            }
+          ]
+        }
+      ]
+    }
+
+  ── (B) Entity payload emitted by the connector  (POST /api/meta/entity/bulk) ──
+
+    {
+      "typeName": "GitHubV01SbomDependency",
+      "attributes": {
+        "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app/sbom/SPDXRef-Package-pip-app-1.0.0/depends_on/SPDXRef-Package-pip-pyatlan-9.6.0",
+        "name": "atlan-context-studio-app \u2192 pyatlan",
+        "connectionQualifiedName": "default/github/1700000000",
+        "description": "Dependency: atlan-context-studio-app depends on pyatlan"
+      },
+      "relationshipAttributes": {
+        "dependsOnSource": {
+          "typeName": "GitHubV01SbomPackage",
+          "uniqueAttributes": {
+            "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app/sbom/SPDXRef-Package-pip-app-1.0.0"
+          }
+        },
+        "dependsOnTarget": {
+          "typeName": "GitHubV01SbomPackage",
+          "uniqueAttributes": {
+            "qualifiedName": "default/github/1700000000/atlanhq/atlan-context-studio-app/sbom/SPDXRef-Package-pip-pyatlan-9.6.0"
+          }
+        }
+      }
+    }
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ 8. Relationship defs — GitHub_relationships.json
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  ── GitHub_relationships.json (4 containment relationships) ──
+
+    {
+      "relationshipDefs": [
+        {
+          "name": "github_v01_repository_and_its_wiki_pages",
+          "category": "RELATIONSHIP",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "relationshipCategory": "AGGREGATION",
+          "propagateTags": "NONE",
+          "endDef1": {
+            "type": "GitHubV01Repository",
+            "name": "wikiPages",
+            "isContainer": true,
+            "cardinality": "SET",
+            "isLegacyAttribute": false,
+            "description": "Wiki pages contained within this repository."
+          },
+          "endDef2": {
+            "type": "GitHubV01WikiPage",
+            "name": "repository",
+            "isContainer": false,
+            "cardinality": "SINGLE",
+            "isLegacyAttribute": false,
+            "description": "Repository containing the wiki page."
+          }
+        },
+        {
+          "name": "github_v01_repository_and_its_yaml_files",
+          "category": "RELATIONSHIP",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "relationshipCategory": "AGGREGATION",
+          "propagateTags": "NONE",
+          "endDef1": {
+            "type": "GitHubV01Repository",
+            "name": "yamlFiles",
+            "isContainer": true,
+            "cardinality": "SET",
+            "isLegacyAttribute": false,
+            "description": "YAML files contained within this repository."
+          },
+          "endDef2": {
+            "type": "GitHubV01YAMLFile",
+            "name": "repository",
+            "isContainer": false,
+            "cardinality": "SINGLE",
+            "isLegacyAttribute": false,
+            "description": "Repository containing the YAML file."
+          }
+        },
+        {
+          "name": "github_v01_repository_and_its_sbom_packages",
+          "category": "RELATIONSHIP",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "relationshipCategory": "AGGREGATION",
+          "propagateTags": "NONE",
+          "endDef1": {
+            "type": "GitHubV01Repository",
+            "name": "sbomPackages",
+            "isContainer": true,
+            "cardinality": "SET",
+            "isLegacyAttribute": false,
+            "description": "SBOM packages declared by this repository."
+          },
+          "endDef2": {
+            "type": "GitHubV01SbomPackage",
+            "name": "repository",
+            "isContainer": false,
+            "cardinality": "SINGLE",
+            "isLegacyAttribute": false,
+            "description": "Repository declaring the SBOM package."
+          }
+        },
+        {
+          "name": "github_v01_sbom_package_dependencies",
+          "category": "RELATIONSHIP",
+          "serviceType": "atlan",
+          "typeVersion": "1.0",
+          "relationshipCategory": "AGGREGATION",
+          "propagateTags": "NONE",
+          "endDef1": {
+            "type": "GitHubV01SbomPackage",
+            "name": "outgoingDependencies",
+            "isContainer": true,
+            "cardinality": "SET",
+            "isLegacyAttribute": false,
+            "description": "Outgoing DEPENDS_ON edges from this package."
+          },
+          "endDef2": {
+            "type": "GitHubV01SbomDependency",
+            "name": "dependsOn",
+            "isContainer": false,
+            "cardinality": "SINGLE",
+            "isLegacyAttribute": false,
+            "description": "Package that depends on others."
+          }
+        }
+      ]
+    }
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+ VERDICT
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  - The typedef JSON in (A) is what `pkl eval typedefs/GitHub.pkl -m .` will emit
+    into atlanhq/models/atlas/entityDefs/Referenceable/Asset/Catalog/GitHub/.
+    Confirmed against the toolkit's rendering rules and AtlanAppInstalled.json
+    precedent.
+  - The entity payloads in (B) are what this connector emits today via
+    app/asset_mapper_v2.py. Once the typedefs in (A) are seeded on a tenant,
+    POSTing the (B) payload to /api/meta/entity/bulk will create matching assets.
+  - The Pkl source is checked in at docs/typedefs/GitHub.pkl. Copy that into
+    atlanhq/models/typedefs/ when starting the Phase 2 PR.
+
