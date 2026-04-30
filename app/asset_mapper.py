@@ -193,23 +193,29 @@ def _parse_yaml_catalog(content: str) -> dict:
 def map_readme(repo: RepoRecord, readme_content: str, connection_qn: str) -> Readme:
     """Map a repository's README to an Atlan Readme asset.
 
+    Readme.creator() requires the parent Application as a real instance (with
+    a GUID), not a ref-by-qualified-name. We rebuild the Application object
+    with the same identity used by map_repository so Atlan resolves them to
+    the same asset on the server side.
+
     Args:
         repo: Repository record
         readme_content: README markdown content
         connection_qn: Atlan connection qualified name
 
     Returns:
-        Readme asset attached to the repository
+        Readme asset attached to the repository (description = README content)
     """
     repo_qn = f"{connection_qn}/{repo.owner}/{repo.name}"
 
-    app_ref = Application.ref_by_qualified_name(repo_qn)
-    readme = Readme.creator(
-        asset=app_ref,
-        content=readme_content,
-        asset_name=repo.name,
+    app = Application.creator(
+        name=repo.name,
+        connection_qualified_name=connection_qn,
     )
-    readme.description = f"README for {repo.full_name}"
+    app.qualified_name = repo_qn
+
+    # asset_name must NOT be passed when the parent Application already has a name
+    readme = Readme.creator(asset=app, content=readme_content)
 
     return readme
 

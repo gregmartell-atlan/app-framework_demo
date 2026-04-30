@@ -8,6 +8,7 @@ import pytest
 from app.api_types import RepoRecord, WikiPageRecord, YamlFileRecord, SbomDependencyRecord
 from app.asset_mapper import (
     map_repository,
+    map_readme,
     map_wiki_page,
     map_yaml_file,
     map_sbom_dependency,
@@ -63,6 +64,27 @@ def test_map_repository():
     assert "forks=30" in asset.user_description
     assert "visibility=public" in asset.user_description
     assert "license=Apache-2.0" in asset.user_description
+
+
+def test_map_readme_creates_valid_asset():
+    """Readme asset is created with content as description and parent Application
+    referenced via real GUID (not ref_by_qualified_name)."""
+    repo = RepoRecord(
+        full_name="atlanhq/atlan-context-studio-app",
+        name="atlan-context-studio-app",
+        owner="atlanhq",
+        description="Test", html_url="x", clone_url="x", default_branch="main",
+        language="Python", is_private=True, is_fork=False, is_archived=False,
+        created_at="2025-11-10T03:06:02Z", updated_at="2026-04-21T12:55:26Z",
+        pushed_at="2026-04-30T11:44:15Z", size_kb=8631, stargazers_count=4,
+        watchers_count=4, forks_count=0, open_issues_count=26, topics=[],
+        license_name=None, has_wiki=True, has_issues=True, has_projects=True,
+        has_downloads=True, id=1093,
+    )
+    content = "# Atlan Context Studio\n\nSemantic view evals."
+    readme = map_readme(repo, content, "default/app/123")
+    assert readme.description == content
+    assert "Readme" in readme.name
 
 
 def test_map_repository_no_description():
