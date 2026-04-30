@@ -109,6 +109,8 @@ REL_WIKI_DATA_DOMAIN = "wikiDataDomain"
 REL_YAML_DATA_DOMAIN = "yamlDataDomain"
 REL_YAML_REFS_SQL = "referencedSqlAssets"
 REL_YAML_REFS_BI = "referencedBiAssets"
+# Integration hook: set by enrichment if the YAML backs an NL2SQL context repository
+REL_YAML_CONTEXT_ARTIFACT = "referencedContextArtifact"
 
 
 def map_visibility(is_private: bool) -> str:

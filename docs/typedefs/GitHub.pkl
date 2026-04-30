@@ -29,6 +29,7 @@
 amends "../toolkit/src/main/pkl/Typedefs.pkl"
 
 import "./CatalogSupertypes.pkl" as CatalogModule
+import "./Context.pkl" as ContextModule
 
 namespace = "GitHub"
 draftIteration = 1
@@ -312,6 +313,27 @@ customRelationshipTypes {
       type = module.getType(SbomDependency)
       attribute = "outgoingDependencies"
       description = "Outgoing DEPENDS_ON edges from this package."
+    }
+    tagPropagation = "NONE"
+  }
+
+  // Optional integration hook: links a YAML file to an Atlan ContextArtifact if the file
+  // turns out to back an NL2SQL context repository. Left null on ingest; set by a downstream
+  // enrichment job or manually once the connection pattern is confirmed with Sai / Anirudh.
+  ["yamlFileAndContextArtifact"] = new PeerToPeerRelationship {
+    description = "Optional peer link between a GitHub YAML file and an Atlan ContextArtifact. Null on initial ingest; populated by enrichment if the YAML backs an NL2SQL context repository."
+    version = "1.0"
+    peers {
+      new {
+        type = module.getType(YAMLFile)
+        attribute = "referencedContextArtifact"
+        description = "ContextArtifact that this YAML file backs, if any."
+      }
+      new {
+        type = ContextModule.getType(ContextModule.getTypeName("Artifact"))
+        attribute = "sourceYamlFiles"
+        description = "GitHub YAML files that back this context artifact."
+      }
     }
     tagPropagation = "NONE"
   }
