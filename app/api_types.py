@@ -37,6 +37,7 @@ class RepoRecord:
     has_issues: bool
     has_projects: bool
     has_downloads: bool
+    id: int = 0  # GitHub numeric repo ID — used as app_id in Atlan
 
 
 @dataclass(frozen=True)

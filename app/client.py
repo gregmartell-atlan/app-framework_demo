@@ -87,19 +87,37 @@ class GitHubClient:
             response.raise_for_status()
             return response.json()
 
-    async def list_repos(self, org: str, max_items: int = 1000) -> AsyncIterator[RepoRecord]:
-        """List repositories for an organization or user.
+    async def _resolve_repos_url(self, org: str) -> str:
+        """Return the correct repos list URL for an org or user account.
 
-        Paginates through all repos up to max_items.
+        Tries /orgs/{org}/repos first (works for GitHub orgs). Falls back to
+        /users/{org}/repos when the account is a plain user (HTTP 404 on the
+        org endpoint is the canonical signal).
+        """
+        org_url = f"{self.BASE_URL}/orgs/{org}/repos"
+        async with self.semaphore:
+            probe = await self._client.get(
+                org_url, params={"per_page": 1, "page": 1}
+            )
+        if probe.status_code == 404:
+            return f"{self.BASE_URL}/users/{org}/repos"
+        probe.raise_for_status()
+        return org_url
+
+    async def list_repos(self, org: str, max_items: int = 1000) -> AsyncIterator[RepoRecord]:
+        """List repositories for an organization or user account.
+
+        Auto-detects whether `org` is a GitHub Organisation or a plain user
+        account and uses the appropriate endpoint.
 
         Args:
-            org: Organization or user login
+            org: Organisation login or personal account login
             max_items: Maximum repos to fetch
 
         Yields:
             RepoRecord instances
         """
-        url = f"{self.BASE_URL}/orgs/{org}/repos"
+        url = await self._resolve_repos_url(org)
         per_page = 100
         page = 1
         fetched = 0
@@ -127,6 +145,7 @@ class GitHubClient:
                         description=repo_data.get("description"),
                         html_url=repo_data["html_url"],
                         clone_url=repo_data["clone_url"],
+                        id=repo_data.get("id", 0),
                         default_branch=repo_data.get("default_branch", "main"),
                         language=repo_data.get("language"),
                         is_private=repo_data["private"],
@@ -214,69 +233,61 @@ class GitHubClient:
                 )
 
     async def list_yaml_files(self, repo_full_name: str) -> AsyncIterator[YamlFileRecord]:
-        """Search for YAML files in a repository and fetch their content.
+        """Discover and fetch YAML files in a repository.
 
-        Searches for .yml and .yaml files via GitHub Code Search API, then fetches raw content.
+        Uses the git tree API (recursive) to enumerate all .yml/.yaml blobs,
+        then fetches raw content via the contents API.  This approach consumes
+        the high-capacity *core* rate limit (5 000/hr) rather than the
+        *code_search* limit (10/min) that the previous Code Search approach
+        used.
 
         Args:
             repo_full_name: e.g., "atlanhq/atlan-python"
 
         Yields:
-            YamlFileRecord instances
+            YamlFileRecord instances with full content
         """
-        # GitHub Code Search API
-        search_url = f"{self.BASE_URL}/search/code"
-        queries = [
-            f"repo:{repo_full_name} extension:yml",
-            f"repo:{repo_full_name} extension:yaml",
+        tree_url = f"{self.BASE_URL}/repos/{repo_full_name}/git/trees/HEAD"
+
+        async with self.semaphore:
+            response = await self._client.get(tree_url, params={"recursive": "1"})
+
+        if response.status_code == 409:
+            # Empty repository — no tree exists yet
+            return
+        response.raise_for_status()
+
+        data = response.json()
+        yaml_blobs = [
+            entry for entry in data.get("tree", [])
+            if entry["type"] == "blob"
+            and entry["path"].endswith((".yml", ".yaml"))
         ]
 
-        seen_paths = set()
+        for entry in yaml_blobs:
+            file_path = entry["path"]
+            file_sha = entry["sha"]
 
-        for query in queries:
-            page = 1
-            per_page = 100
+            # Fetch raw content via contents API (returns base64 by default)
+            contents_url = f"{self.BASE_URL}/repos/{repo_full_name}/contents/{file_path}"
+            async with self.semaphore:
+                content_response = await self._client.get(
+                    contents_url,
+                    headers={**self.headers, "Accept": "application/vnd.github.raw+json"},
+                )
 
-            while True:
-                async with self.semaphore:
-                    response = await self._client.get(
-                        search_url,
-                        params={"q": query, "per_page": per_page, "page": page},
-                    )
-                    response.raise_for_status()
-                    data = response.json()
+            if content_response.status_code == 404:
+                continue  # file deleted between tree fetch and content fetch
+            content_response.raise_for_status()
+            content = content_response.text
 
-                    if "items" not in data or not data["items"]:
-                        break
-
-                    for item in data["items"]:
-                        file_path = item["path"]
-                        if file_path in seen_paths:
-                            continue
-                        seen_paths.add(file_path)
-
-                        # Fetch raw file content
-                        file_sha = item["sha"]
-                        download_url = item.get("download_url") or item.get("html_url").replace("/blob/", "/raw/")
-
-                        async with self.semaphore:
-                            content_response = await self._client.get(download_url)
-                            content_response.raise_for_status()
-                            content = content_response.text
-
-                        yield YamlFileRecord(
-                            repo_full_name=repo_full_name,
-                            file_path=file_path,
-                            content=content,
-                            file_sha=file_sha,
-                            file_size_bytes=len(content.encode("utf-8")),
-                        )
-
-                    # GitHub Code Search max 1000 results per query
-                    if len(data["items"]) < per_page or page * per_page >= 1000:
-                        break
-
-                    page += 1
+            yield YamlFileRecord(
+                repo_full_name=repo_full_name,
+                file_path=file_path,
+                content=content,
+                file_sha=file_sha,
+                file_size_bytes=len(content.encode("utf-8")),
+            )
 
     # ========================================================================
     # SBOM methods (Phase 2)

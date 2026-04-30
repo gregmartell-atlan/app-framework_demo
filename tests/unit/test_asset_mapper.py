@@ -43,6 +43,7 @@ def test_map_repository():
         has_issues=True,
         has_projects=True,
         has_downloads=True,
+        id=987654321,
     )
 
     conn_qn = "default/github/1234567890"
@@ -52,6 +53,16 @@ def test_map_repository():
     assert asset.qualified_name == f"{conn_qn}/atlanhq/atlan-python"
     assert asset.description == "Python SDK for Atlan"
     assert asset.source_url == "https://github.com/atlanhq/atlan-python"
+    assert asset.app_id == "987654321"
+    assert asset.display_name == "atlanhq/atlan-python"
+    assert asset.source_created_by == "atlanhq"
+    assert asset.source_created_at == 1642242600000  # 2022-01-15T10:30:00Z in epoch ms
+    assert asset.asset_tags == ["python", "sdk", "atlan"]
+    assert "language=Python" in asset.user_description
+    assert "stars=150" in asset.user_description
+    assert "forks=30" in asset.user_description
+    assert "visibility=public" in asset.user_description
+    assert "license=Apache-2.0" in asset.user_description
 
 
 def test_map_repository_no_description():
@@ -87,6 +98,9 @@ def test_map_repository_no_description():
     asset = map_repository(repo, "default/github/123")
     assert asset.description == ""
     assert asset.name == "empty-repo"
+    assert asset.app_id is None  # id=0 → None
+    assert "visibility=private" in asset.user_description
+    assert "language=" not in asset.user_description
 
 
 def test_map_wiki_page():
@@ -105,6 +119,8 @@ def test_map_wiki_page():
     assert asset.name == "Getting Started"
     assert asset.qualified_name == f"{conn_qn}/atlanhq/atlan-python/wiki/Getting-Started.md"
     assert "Getting Started" in asset.description or "Welcome" in asset.description
+    assert asset.app_id == "abc123def456"
+    assert asset.user_description == "wiki_page | atlanhq/atlan-python"
 
 
 def test_map_wiki_page_long_content_truncated():
@@ -139,6 +155,8 @@ def test_map_yaml_file():
     assert asset.name == "ci.yml"
     assert asset.qualified_name == f"{conn_qn}/atlanhq/atlan-python/yaml/.github/workflows/ci.yml"
     assert "ci.yml" in asset.description or ".github/workflows/ci.yml" in asset.description
+    assert asset.app_id == "xyz789"
+    assert asset.user_description == "config_file | yaml | atlanhq/atlan-python"
 
 
 def test_map_sbom_dependency():
@@ -164,6 +182,9 @@ def test_map_sbom_dependency():
     assert asset.qualified_name == f"{conn_qn}/atlanhq/atlan-python/dep/SPDXRef-Package-pip-requests-2.28.0"
     assert asset.description.startswith("SBOM dependency: requests 2.28.0")
     assert asset.source_url == "pkg:pypi/requests@2.28.0"
+    assert asset.app_id == "SPDXRef-Package-pip-requests-2.28.0"
+    assert "sbom_dependency" in asset.user_description
+    assert "license=Apache-2.0" in asset.user_description
 
 
 def test_map_sbom_dependency_no_purl():

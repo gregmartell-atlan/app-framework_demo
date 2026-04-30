@@ -1,8 +1,24 @@
 """Pure mapping functions from GitHub API records to pyatlan_v9 assets.
 
 All mappers are stateless functions with no side effects.
+
+Attribute reference (pyatlan_v9 Application / ApplicationField):
+  Type-specific scalars — Application : app_id, catalog_dataset_guid
+  Type-specific scalars — ApplicationField : application_parent_qualified_name,
+                                              app_id, catalog_dataset_guid
+  Inherited from Asset (used here) : description, source_url, display_name,
+                                      source_created_at (epoch ms), source_updated_at (epoch ms),
+                                      source_created_by, asset_tags, user_description,
+                                      connection_qualified_name, connector_name
+
+  No applicationFieldType / applicationFieldFormat fields exist in the typedef.
+  GitHub-specific metadata without a typedef field (language, star_count, is_private,
+  forks_count, etc.) is stored in user_description as a compact key=value string so
+  it is searchable in Atlan's UI full-text index.
 """
 
+import json
+from datetime import datetime, timezone
 from typing import Optional
 
 from pyatlan_v9.model.assets import Application, ApplicationField, Process, Readme
@@ -10,8 +26,50 @@ from pyatlan_v9.model.assets import Application, ApplicationField, Process, Read
 from app.api_types import RepoRecord, WikiPageRecord, YamlFileRecord, SbomDependencyRecord
 
 
+def _iso_to_epoch_ms(iso: Optional[str]) -> Optional[int]:
+    """Convert ISO 8601 timestamp string to epoch milliseconds (int)."""
+    if not iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return int(dt.timestamp() * 1000)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _repo_user_description(repo: RepoRecord) -> str:
+    """Pack GitHub-specific metadata that has no typedef field into a compact string."""
+    parts = []
+    if repo.language:
+        parts.append(f"language={repo.language}")
+    parts.append(f"stars={repo.stargazers_count}")
+    parts.append(f"forks={repo.forks_count}")
+    parts.append(f"open_issues={repo.open_issues_count}")
+    if repo.is_private:
+        parts.append("visibility=private")
+    else:
+        parts.append("visibility=public")
+    if repo.is_archived:
+        parts.append("archived=true")
+    if repo.is_fork:
+        parts.append("fork=true")
+    if repo.license_name:
+        parts.append(f"license={repo.license_name}")
+    return " | ".join(parts)
+
+
 def map_repository(repo: RepoRecord, connection_qn: str) -> Application:
     """Map a GitHub repository to an Atlan Application asset.
+
+    Sets all available typedef fields:
+    - app_id        → GitHub numeric repo ID (unique source identifier)
+    - display_name  → full_name ("owner/repo") for UI clarity
+    - description   → GitHub repo description
+    - source_url    → HTML URL
+    - source_created_at / source_updated_at → epoch ms timestamps
+    - source_created_by → repo owner login
+    - asset_tags    → GitHub topics
+    - user_description → packed metadata (language, stars, forks, visibility, …)
 
     Args:
         repo: Repository record from GitHub API
@@ -27,8 +85,22 @@ def map_repository(repo: RepoRecord, connection_qn: str) -> Application:
         connection_qualified_name=connection_qn,
     )
     app.qualified_name = repo_qn
+
+    # Core typedef fields
+    app.app_id = str(repo.id) if repo.id else None
+    app.display_name = repo.full_name
     app.description = repo.description or ""
     app.source_url = repo.html_url
+    app.source_created_by = repo.owner
+    app.source_created_at = _iso_to_epoch_ms(repo.created_at)
+    app.source_updated_at = _iso_to_epoch_ms(repo.updated_at)
+
+    # GitHub topics → Atlan asset_tags
+    if repo.topics:
+        app.asset_tags = repo.topics
+
+    # Pack GitHub-specific metadata that has no dedicated typedef field
+    app.user_description = _repo_user_description(repo)
 
     return app
 
@@ -60,6 +132,10 @@ def map_readme(repo: RepoRecord, readme_content: str, connection_qn: str) -> Rea
 def map_wiki_page(page: WikiPageRecord, connection_qn: str) -> ApplicationField:
     """Map a GitHub wiki page to an Atlan ApplicationField asset.
 
+    - app_id       → git blob SHA (stable unique source ID for this page version)
+    - description  → truncated page content (first 500 chars)
+    - user_description → "wiki_page | {repo_full_name}"
+
     Args:
         page: Wiki page record
         connection_qn: Atlan connection qualified name
@@ -77,13 +153,19 @@ def map_wiki_page(page: WikiPageRecord, connection_qn: str) -> ApplicationField:
         connection_qualified_name=connection_qn,
     )
     field.qualified_name = page_qn
+    field.app_id = page.file_sha
     field.description = page.content[:500] + ("..." if len(page.content) > 500 else "")
+    field.user_description = f"wiki_page | {page.repo_full_name}"
 
     return field
 
 
 def map_yaml_file(yaml: YamlFileRecord, connection_qn: str) -> ApplicationField:
     """Map a YAML configuration file to an Atlan ApplicationField asset.
+
+    - app_id       → git blob SHA
+    - description  → "YAML configuration file: {file_path}"
+    - user_description → "config_file | yaml | {repo_full_name}"
 
     Args:
         yaml: YAML file record
@@ -102,7 +184,9 @@ def map_yaml_file(yaml: YamlFileRecord, connection_qn: str) -> ApplicationField:
         connection_qualified_name=connection_qn,
     )
     field.qualified_name = yaml_qn
+    field.app_id = yaml.file_sha
     field.description = f"YAML configuration file: {yaml.file_path}"
+    field.user_description = f"config_file | yaml | {yaml.repo_full_name}"
 
     return field
 
@@ -113,6 +197,11 @@ def map_yaml_file(yaml: YamlFileRecord, connection_qn: str) -> ApplicationField:
 
 def map_sbom_dependency(dep: SbomDependencyRecord, connection_qn: str) -> ApplicationField:
     """Map an SBOM dependency to an Atlan ApplicationField asset.
+
+    - app_id       → SPDX ID (stable source-system identifier)
+    - description  → "SBOM dependency: {name} {version}"
+    - source_url   → purl (package URL — most stable external identifier)
+    - user_description → "sbom_dependency | spdx | {repo_full_name} | license={license}"
 
     Args:
         dep: SBOM dependency record (from SPDX JSON)
@@ -131,9 +220,15 @@ def map_sbom_dependency(dep: SbomDependencyRecord, connection_qn: str) -> Applic
         connection_qualified_name=connection_qn,
     )
     field.qualified_name = dep_qn
+    field.app_id = dep.spdx_id
     field.description = f"SBOM dependency: {dep.package_name} {dep.package_version or ''}"
     if dep.purl:
         field.source_url = dep.purl
+
+    license_info = dep.license_concluded or dep.license_declared or "unknown"
+    field.user_description = (
+        f"sbom_dependency | spdx | {dep.repo_full_name} | license={license_info}"
+    )
 
     return field
 
@@ -167,6 +262,8 @@ def map_sbom_relationship(
         outputs=[ApplicationField.ref_by_qualified_name(child_qn)],
     )
     process.qualified_name = process_qn
-    process.description = f"Dependency relationship: {parent_dep.package_name} depends on {dep.package_name}"
+    process.description = (
+        f"Dependency relationship: {parent_dep.package_name} depends on {dep.package_name}"
+    )
 
     return process
