@@ -1,0 +1,318 @@
+/* SPDX-License-Identifier: Apache-2.0
+   Copyright 2026 Atlan Pte. Ltd. */
+
+/// GitHub connector custom typedefs (Phase 2A — minimum viable for Sony POC).
+///
+/// **Where this file lives in production:**
+///   atlanhq/models/typedefs/GitHub.pkl
+/// (kept here in the connector repo for review/iteration before atlanhq/models PR)
+///
+/// **Iteration mode:** `draftIteration = 1` causes the toolkit to suffix every
+/// generated name with `V01` (e.g. `GitHubV01Repository`). Bump per breaking
+/// change during development; remove for GA.
+///
+/// **Render command (run from the atlanhq/models repo root after copying this in):**
+///   pkl eval typedefs/GitHub.pkl -m .
+///
+/// **Conventions verified against models-master.zip:**
+///   - Type name renders as `{namespace}{LocalTypeName}` (with V-suffix when in draft).
+///   - Attribute name renders as `{attrPrefix}{PascalCaseLocalName}` (toolkit
+///     auto-capitalises the first letter of the declared key).
+///   - Enum name renders as `{namespace}{LocalEnumName}`.
+///   - Supertype renders as plain `{namespace}` (no extra suffix).
+///
+/// **Phase 2A scope (this file):**
+///   5 asset types, 2 enums, 4 relationships (3 containment + 1 SBOM peer).
+///   Cross-module SQL/BI/DataMesh peer relationships are deferred to Phase 2B —
+///   they add cross-module compile risk and aren't blocking for the Sony POC.
+///
+amends "../toolkit/src/main/pkl/Typedefs.pkl"
+
+import "./CatalogSupertypes.pkl" as CatalogModule
+
+namespace = "GitHub"
+draftIteration = 1
+modelOutputLocation = "Referenceable/Asset/Catalog"
+
+// ─── Supertype (containment hierarchy attrs live here) ──────────────────────
+supertypeDefinition {
+  description = "Base class for all GitHub-sourced assets."
+  superTypes { CatalogModule.supertypeDefinition }
+  version = "1.0"
+  attributes {
+    ["repositoryName"] {
+      description = "Simple name of the GitHub repository this asset belongs to."
+      type = "string"
+    }
+    ["repositoryQualifiedName"] {
+      description = "Qualified name of the GitHub repository this asset belongs to."
+      type = "string"
+      indexAs = "keyword"
+    }
+    ["repositoryOrg"] {
+      description = "GitHub organization or user account owning the repository."
+      type = "string"
+    }
+  }
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+local RepoVisibility = getTypeName("RepoVisibility")
+local SbomEcosystem = getTypeName("SbomEcosystem")
+
+customEnumTypes {
+  [RepoVisibility] {
+    description = "Visibility level of a GitHub repository."
+    version = "1.0"
+    validValues {
+      ["PUBLIC"]   { description = "Publicly visible repository." }
+      ["PRIVATE"]  { description = "Visible only to org members or collaborators." }
+      ["INTERNAL"] { description = "Visible only to enterprise members (GitHub Enterprise)." }
+    }
+  }
+  [SbomEcosystem] {
+    description = "Package ecosystem for an SBOM dependency."
+    version = "1.0"
+    validValues {
+      ["PYPI"]     { description = "Python Package Index." }
+      ["NPM"]      { description = "Node Package Manager." }
+      ["MAVEN"]    { description = "Maven Central." }
+      ["GO"]       { description = "Go modules." }
+      ["CARGO"]    { description = "Rust Cargo." }
+      ["RUBYGEMS"] { description = "Ruby Gems." }
+      ["NUGET"]    { description = "NuGet (.NET)." }
+      ["DOCKER"]   { description = "Docker / OCI image." }
+      ["OTHER"]    { description = "Other or unknown ecosystem." }
+    }
+  }
+}
+
+// ─── Asset types ────────────────────────────────────────────────────────────
+local Repository = getTypeName("Repository")
+local WikiPage = getTypeName("WikiPage")
+local YAMLFile = getTypeName("YAMLFile")
+local SbomPackage = getTypeName("SbomPackage")
+local SbomDependency = getTypeName("SbomDependency")
+
+customAssetTypes {
+
+  [Repository] {
+    description = "A GitHub repository."
+    version = "1.0"
+    attributes {
+      ["repositoryUrl"] {
+        type = "string"
+        description = "HTML URL of the repository."
+      }
+      ["defaultBranch"] {
+        type = "string"
+        description = "Name of the repository's default branch."
+      }
+      ["visibility"] {
+        type = "enum"
+        enum = module.getEnum(RepoVisibility)
+        description = "Repository visibility (public / private / internal)."
+      }
+      ["primaryLanguage"] {
+        type = "string"
+        description = "Dominant language detected by GitHub."
+      }
+      ["starCount"] {
+        type = "long"
+        description = "Number of stargazers."
+      }
+      ["forkCount"] {
+        type = "long"
+        description = "Number of forks."
+      }
+      ["openIssueCount"] {
+        type = "long"
+        description = "Open issues + pull requests."
+      }
+      ["topicTags"] {
+        type = "string"
+        multiValued = true
+        description = "GitHub topic tags applied to the repository."
+      }
+      ["repoCreatedAt"] {
+        type = "date"
+        description = "Repository creation timestamp (epoch ms)."
+      }
+      ["repoUpdatedAt"] {
+        type = "date"
+        description = "Repository last-pushed timestamp (epoch ms). Sourced from GitHub `pushed_at` for code-currency accuracy."
+      }
+      ["isArchived"] {
+        type = "boolean"
+        description = "Whether the repository is archived (read-only on GitHub)."
+      }
+    }
+  }
+
+  [WikiPage] {
+    description = "A wiki page or repo Markdown document."
+    version = "1.0"
+    attributes {
+      ["wikiPath"] {
+        type = "string"
+        description = "Path of the wiki page within the wiki tree."
+      }
+      ["wikiFrontmatterOwner"] {
+        type = "string"
+        description = "Owner declared in YAML frontmatter (raw, verbatim from source)."
+      }
+      ["wikiFrontmatterDomain"] {
+        type = "string"
+        description = "Domain declared in YAML frontmatter (raw, verbatim from source). Canonical resolution to a DataDomain is handled by a downstream enrichment job."
+      }
+      ["wikiFrontmatterTags"] {
+        type = "string"
+        multiValued = true
+        description = "Tags declared in YAML frontmatter."
+      }
+      ["wikiBlobSha"] {
+        type = "string"
+        description = "Git blob SHA — stable identifier for this version of the page."
+      }
+    }
+  }
+
+  [YAMLFile] {
+    description = "A YAML configuration or catalog file in a GitHub repository."
+    version = "1.0"
+    attributes {
+      ["yamlPath"] {
+        type = "string"
+        description = "Path of the YAML file within the repository."
+      }
+      ["yamlSchemaPath"] {
+        type = "string"
+        description = "JSON-Schema reference declared in the YAML, if present."
+      }
+      ["yamlOwner"] {
+        type = "string"
+        description = "Owner declared in the YAML body (raw, verbatim from source)."
+      }
+      ["yamlDomain"] {
+        type = "string"
+        description = "Domain declared in the YAML body (raw, verbatim from source). Canonical resolution to a DataDomain is handled by a downstream enrichment job."
+      }
+      ["yamlTags"] {
+        type = "string"
+        multiValued = true
+        description = "Tags declared in the YAML body."
+      }
+      ["yamlBlobSha"] {
+        type = "string"
+        description = "Git blob SHA — stable identifier for this version of the file."
+      }
+    }
+  }
+
+  [SbomPackage] {
+    description = "A package declared in a Software Bill of Materials."
+    version = "1.0"
+    attributes {
+      ["sbomEcosystem"] {
+        type = "enum"
+        enum = module.getEnum(SbomEcosystem)
+        description = "Package ecosystem (inferred from purl scheme)."
+      }
+      ["sbomVersion"] {
+        type = "string"
+        description = "Version pinned in the SBOM."
+      }
+      ["sbomLicense"] {
+        type = "string"
+        description = "Declared or concluded license (SPDX ID)."
+      }
+      ["sbomPurl"] {
+        type = "string"
+        description = "Canonical Package URL (purl)."
+      }
+      ["sbomSpdxId"] {
+        type = "string"
+        description = "SPDX identifier from the SBOM document."
+      }
+      ["sbomVulnerabilityCount"] {
+        type = "long"
+        description = "Count of known CVEs against this package version (populated by enrichment)."
+      }
+    }
+  }
+
+  [SbomDependency] {
+    description = "A DEPENDS_ON edge between two SBOM packages."
+    version = "1.0"
+    attributes {
+      ["dependencyScope"] {
+        type = "string"
+        description = "Scope of the dependency (runtime, dev, optional, etc)."
+      }
+    }
+  }
+}
+
+// ─── Relationships ──────────────────────────────────────────────────────────
+customRelationshipTypes {
+
+  ["repositoryAndItsWikiPages"] = new ContainmentRelationship {
+    description = "Containment relationship between a GitHub repository and its wiki pages."
+    parent {
+      type = module.getType(Repository)
+      attribute = "repository"
+      description = "Repository containing the wiki page."
+    }
+    children {
+      type = module.getType(WikiPage)
+      attribute = "wikiPages"
+      description = "Wiki pages contained within this repository."
+    }
+    tagPropagation = "NONE"
+  }
+
+  ["repositoryAndItsYamlFiles"] = new ContainmentRelationship {
+    description = "Containment relationship between a GitHub repository and its YAML files."
+    parent {
+      type = module.getType(Repository)
+      attribute = "repository"
+      description = "Repository containing the YAML file."
+    }
+    children {
+      type = module.getType(YAMLFile)
+      attribute = "yamlFiles"
+      description = "YAML files contained within this repository."
+    }
+    tagPropagation = "NONE"
+  }
+
+  ["repositoryAndItsSbomPackages"] = new ContainmentRelationship {
+    description = "Containment relationship between a GitHub repository and its SBOM packages."
+    parent {
+      type = module.getType(Repository)
+      attribute = "repository"
+      description = "Repository declaring the SBOM package."
+    }
+    children {
+      type = module.getType(SbomPackage)
+      attribute = "sbomPackages"
+      description = "SBOM packages declared by this repository."
+    }
+    tagPropagation = "NONE"
+  }
+
+  ["sbomPackageDependencies"] = new ContainmentRelationship {
+    description = "DEPENDS_ON edge: parent package depends on child package. Modelled as containment so the dependency edge is owned by the source SBOM and cleaned up when the source repository is deleted."
+    parent {
+      type = module.getType(SbomPackage)
+      attribute = "dependsOn"
+      description = "Package that depends on others."
+    }
+    children {
+      type = module.getType(SbomDependency)
+      attribute = "outgoingDependencies"
+      description = "Outgoing DEPENDS_ON edges from this package."
+    }
+    tagPropagation = "NONE"
+  }
+}
