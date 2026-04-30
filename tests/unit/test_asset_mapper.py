@@ -87,6 +87,112 @@ def test_map_readme_creates_valid_asset():
     assert "Readme" in readme.name
 
 
+def test_map_repository_source_updated_at_uses_pushed_at():
+    """source_updated_at should map from pushed_at, not updated_at."""
+    repo = RepoRecord(
+        full_name="atlanhq/atlan-python",
+        name="atlan-python",
+        owner="atlanhq",
+        description=None,
+        html_url="https://github.com/atlanhq/atlan-python",
+        clone_url="https://github.com/atlanhq/atlan-python.git",
+        default_branch="main",
+        language=None,
+        is_private=False,
+        is_fork=False,
+        is_archived=False,
+        created_at="2022-01-01T00:00:00Z",
+        updated_at="2026-04-21T00:00:00Z",
+        pushed_at="2026-04-30T00:00:00Z",  # 9 days after updated_at
+        size_kb=0,
+        stargazers_count=0,
+        watchers_count=0,
+        forks_count=0,
+        open_issues_count=0,
+        topics=[],
+        license_name=None,
+        has_wiki=False,
+        has_issues=False,
+        has_projects=False,
+        has_downloads=False,
+    )
+
+    asset = map_repository(repo, "default/github/123")
+    from app.asset_mapper import _iso_to_epoch_ms
+    assert asset.source_updated_at == _iso_to_epoch_ms("2026-04-30T00:00:00Z")
+    assert asset.source_updated_at != _iso_to_epoch_ms("2026-04-21T00:00:00Z")
+
+
+def test_map_repository_private_sets_is_discoverable_false():
+    """Private repos must set is_discoverable=False for governance."""
+    repo = RepoRecord(
+        full_name="atlanhq/private-repo",
+        name="private-repo",
+        owner="atlanhq",
+        description=None,
+        html_url="https://github.com/atlanhq/private-repo",
+        clone_url="https://github.com/atlanhq/private-repo.git",
+        default_branch="main",
+        language=None,
+        is_private=True,
+        is_fork=False,
+        is_archived=False,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        pushed_at="2024-01-01T00:00:00Z",
+        size_kb=0,
+        stargazers_count=0,
+        watchers_count=0,
+        forks_count=0,
+        open_issues_count=0,
+        topics=[],
+        license_name=None,
+        has_wiki=False,
+        has_issues=False,
+        has_projects=False,
+        has_downloads=False,
+    )
+
+    asset = map_repository(repo, "default/github/123")
+    assert asset.is_discoverable is False
+
+
+def test_map_repository_public_does_not_restrict_discovery():
+    """Public repos should NOT set is_discoverable=False."""
+    repo = RepoRecord(
+        full_name="atlanhq/public-repo",
+        name="public-repo",
+        owner="atlanhq",
+        description=None,
+        html_url="https://github.com/atlanhq/public-repo",
+        clone_url="https://github.com/atlanhq/public-repo.git",
+        default_branch="main",
+        language=None,
+        is_private=False,
+        is_fork=False,
+        is_archived=False,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        pushed_at="2024-01-01T00:00:00Z",
+        size_kb=0,
+        stargazers_count=0,
+        watchers_count=0,
+        forks_count=0,
+        open_issues_count=0,
+        topics=[],
+        license_name=None,
+        has_wiki=False,
+        has_issues=False,
+        has_projects=False,
+        has_downloads=False,
+    )
+
+    asset = map_repository(repo, "default/github/123")
+    import msgspec
+    # is_discoverable should be unset (not explicitly False) for public repos
+    assert asset.is_discoverable is None or isinstance(asset.is_discoverable, msgspec.UnsetType)
+
+
 def test_map_repository_no_description():
     """Test mapping a repo with no description defaults to empty string."""
     repo = RepoRecord(
@@ -123,6 +229,7 @@ def test_map_repository_no_description():
     assert asset.app_id is None  # id=0 → None
     assert "visibility=private" in asset.user_description
     assert "language=" not in asset.user_description
+    assert asset.is_discoverable is False  # private repo
 
 
 def test_map_wiki_page():

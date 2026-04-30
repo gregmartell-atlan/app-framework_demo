@@ -95,7 +95,13 @@ def map_repository(repo: RepoRecord, connection_qn: str) -> Application:
     app.source_url = repo.html_url
     app.source_created_by = repo.owner
     app.source_created_at = _iso_to_epoch_ms(repo.created_at)
-    app.source_updated_at = _iso_to_epoch_ms(repo.updated_at)
+    # pushed_at reflects the last code push — more accurate for code currency than updated_at
+    # (updated_at changes on metadata edits; pushed_at only changes when commits land)
+    app.source_updated_at = _iso_to_epoch_ms(repo.pushed_at)
+
+    # Private repos should not surface in Atlan's default discovery view
+    if repo.is_private:
+        app.is_discoverable = False
 
     # GitHub topics → Atlan asset_tags
     if repo.topics:
