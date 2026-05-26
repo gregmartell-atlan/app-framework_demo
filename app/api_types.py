@@ -49,6 +49,7 @@ class WikiPageRecord:
     page_name: str  # e.g., "Home"
     content: str  # markdown content
     file_sha: Optional[str]  # git SHA if available
+    wiki_section: Optional[str] = None  # nav section, e.g., "Client Events"; inferred from title if absent
 
 
 @dataclass(frozen=True)
