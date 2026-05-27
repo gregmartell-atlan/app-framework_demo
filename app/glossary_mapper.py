@@ -208,8 +208,11 @@ def map_readme(saved_asset: AtlasGlossaryTerm, content: str, asset_name: str) ->
     """Create a Readme asset linked to an already-saved GlossaryTerm.
 
     saved_asset must have a guid (returned from client.asset.save()).
-    asset_name is passed explicitly because the saved stub may have name=UNSET.
+    asset_name is only passed when the saved stub has no name of its own,
+    since Readme.creator rejects asset_name when the asset already has one.
     """
+    if saved_asset.name and str(saved_asset.name) != "UNSET":
+        return Readme.creator(asset=saved_asset, content=content)
     return Readme.creator(asset=saved_asset, content=content, asset_name=asset_name)
 
 
