@@ -16,6 +16,7 @@ from app.glossary_mapper import (
     build_see_also_update,
     map_glossary,
     map_glossary_category,
+    map_readme,
     map_wiki_page_as_term,
 )
 from pyatlan_v9.client.atlan import AtlanClient
@@ -108,10 +109,13 @@ def push(pages: list[WikiPageRecord]):
         updated  = (resp.mutated_entities.UPDATE or []) if resp.mutated_entities else []
         action   = "created" if created else "updated"
         saved_qn = _saved_qn(resp)
-        if saved_qn:
+        saved    = (created + updated)
+        if saved_qn and saved:
             slug = page.page_path.removesuffix(".md")
             slug_to_qn[slug]   = saved_qn
             slug_to_page[slug] = page
+            readme = map_readme(saved[0], page.content, page.page_name)
+            client.asset.save(readme)
         print(f"  ✓ [{action}] {page.page_name}")
 
     # ── 4. Link see_also (Extends / Includes) ─────────────────────────────────

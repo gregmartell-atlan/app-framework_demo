@@ -15,7 +15,7 @@ telemetry template still produce a valid term; missing fields are omitted.
 import re
 from typing import Optional
 
-from pyatlan_v9.model.assets import AtlasGlossary, AtlasGlossaryCategory, AtlasGlossaryTerm
+from pyatlan_v9.model.assets import AtlasGlossary, AtlasGlossaryCategory, AtlasGlossaryTerm, Readme
 
 from app.api_types import WikiPageRecord, YamlFileRecord
 
@@ -202,6 +202,15 @@ def build_see_also_update(
     )
     update.see_also = [AtlasGlossaryTerm.ref_by_qualified_name(qn) for qn in related_qns]
     return update
+
+
+def map_readme(saved_asset: AtlasGlossaryTerm, content: str, asset_name: str) -> Readme:
+    """Create a Readme asset linked to an already-saved GlossaryTerm.
+
+    saved_asset must have a guid (returned from client.asset.save()).
+    asset_name is passed explicitly because the saved stub may have name=UNSET.
+    """
+    return Readme.creator(asset=saved_asset, content=content, asset_name=asset_name)
 
 
 def map_yaml_file_as_term(yaml_file: YamlFileRecord, glossary_qn: str) -> AtlasGlossaryTerm:
