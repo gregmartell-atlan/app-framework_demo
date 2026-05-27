@@ -26,7 +26,7 @@ ATLAN_BASE_URL = os.environ.get("ATLAN_BASE_URL", "https://dsm.atlan.com")
 ATLAN_API_KEY  = os.environ["ATLAN_API_KEY"]
 GITHUB_TOKEN   = os.environ["GITHUB_TOKEN"]
 REPO           = os.environ.get("GITHUB_REPO", "gregmartell-atlan/app-framework_demo")
-GLOSSARY_NAME  = os.environ.get("GLOSSARY_NAME", REPO.split("/")[0])
+GLOSSARY_NAME  = os.environ.get("GLOSSARY_NAME", "ghost_tsushima")
 
 
 def is_schema_page(page: WikiPageRecord) -> bool:
