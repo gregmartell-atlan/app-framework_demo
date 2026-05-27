@@ -13,9 +13,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.api_types import WikiPageRecord
 from app.glossary_mapper import (
     _infer_wiki_section,
-    build_see_also_update,
+    build_relationship_updates,
     map_glossary,
     map_glossary_category,
+    map_glossary_subcategory,
     map_readme,
     map_wiki_page_as_term,
 )
@@ -73,6 +74,17 @@ def push(pages: list[WikiPageRecord]):
     client = AtlanClient(base_url=ATLAN_BASE_URL, api_key=ATLAN_API_KEY)
     schema_pages = [p for p in pages if is_schema_page(p)]
 
+    # ── Phase 1 filter: only Client and Shared Schemas pages ─────────────────
+    def _classify(page: WikiPageRecord) -> tuple[str | None, str | None]:
+        track, page_type = _infer_wiki_section(page.page_name, page.page_path)
+        return track, page_type
+
+    phase1_pages = [
+        p for p in schema_pages
+        if _classify(p)[0] in ("Client", "Shared Schemas")
+    ]
+    print(f"  Phase 1 filter: {len(phase1_pages)}/{len(schema_pages)} pages qualify (Client + Shared Schemas)")
+
     # ── 1. Save glossary ─────────────────────────────────────────────────────
     print(f"\nSaving glossary '{GLOSSARY_NAME}'...")
     glossary = map_glossary(GLOSSARY_NAME)
@@ -81,28 +93,62 @@ def push(pages: list[WikiPageRecord]):
     glossary_guid = _saved_guid(resp) or ""
     print(f"  ✓ QN: {glossary_qn}  GUID: {glossary_guid}")
 
-    # ── 2. Save categories ────────────────────────────────────────────────────
-    sections: dict[str, object] = {}
-    for page in schema_pages:
-        section = page.wiki_section or _infer_wiki_section(page.page_name)
-        if section and section not in sections:
-            print(f"Saving category '{section}'...")
-            cat  = map_glossary_category(section, glossary_qn)
-            resp = client.asset.save(cat)
-            created = (resp.mutated_entities.CREATE or []) if resp.mutated_entities else []
-            updated = (resp.mutated_entities.UPDATE or []) if resp.mutated_entities else []
-            saved   = (created + updated)
-            sections[section] = saved[0] if saved else cat
-            print(f"  ✓ {section}")
+    # ── 2. Save top-level categories ─────────────────────────────────────────
+    # Determine which top-level tracks are needed
+    needed_tracks: set[str] = set()
+    for page in phase1_pages:
+        track, _ = _classify(page)
+        if track:
+            needed_tracks.add(track)
 
-    # ── 3. Save terms, build slug → QN map ───────────────────────────────────
-    print(f"\nSaving {len(schema_pages)} terms...")
+    top_cats: dict[str, object] = {}  # track → saved category asset
+    for track in sorted(needed_tracks):
+        print(f"Saving top-level category '{track}'...")
+        cat  = map_glossary_category(track, glossary_qn)
+        resp = client.asset.save(cat)
+        created = (resp.mutated_entities.CREATE or []) if resp.mutated_entities else []
+        updated = (resp.mutated_entities.UPDATE or []) if resp.mutated_entities else []
+        saved   = created + updated
+        top_cats[track] = saved[0] if saved else cat
+        print(f"  ✓ {track}")
+
+    # ── 3. Save sub-categories ────────────────────────────────────────────────
+    # Sub-cats only exist under Client/Native/Tooling (not Shared Schemas)
+    needed_subcats: set[tuple[str, str]] = set()
+    for page in phase1_pages:
+        track, page_type = _classify(page)
+        if track and page_type:  # Shared Schemas has page_type=None
+            needed_subcats.add((track, page_type))
+
+    sub_cats: dict[tuple[str, str], object] = {}  # (track, page_type) → saved sub-cat asset
+    for track, page_type in sorted(needed_subcats):
+        parent = top_cats.get(track)
+        if parent is None:
+            continue
+        print(f"Saving sub-category '{track} > {page_type}'...")
+        sub  = map_glossary_subcategory(page_type, glossary_qn, parent_category=parent)
+        resp = client.asset.save(sub)
+        created = (resp.mutated_entities.CREATE or []) if resp.mutated_entities else []
+        updated = (resp.mutated_entities.UPDATE or []) if resp.mutated_entities else []
+        saved   = created + updated
+        sub_cats[(track, page_type)] = saved[0] if saved else sub
+        print(f"  ✓ {track} > {page_type}")
+
+    # ── 4. Save terms, build slug → QN map ───────────────────────────────────
+    print(f"\nSaving {len(phase1_pages)} terms...")
     slug_to_qn: dict[str, str] = {}   # e.g. "client-baseClientEvent" → "term@<uuid>"
     slug_to_page: dict[str, WikiPageRecord] = {}
 
-    for page in schema_pages:
-        section  = page.wiki_section or _infer_wiki_section(page.page_name)
-        category = sections.get(section) if section else None
+    for page in phase1_pages:
+        track, page_type = _classify(page)
+        # Assign to sub-category if available, else top-level category
+        if track and page_type:
+            category = sub_cats.get((track, page_type)) or top_cats.get(track)
+        elif track:
+            category = top_cats.get(track)
+        else:
+            category = None
+
         term     = map_wiki_page_as_term(page, glossary_qn, category=category)
         resp     = client.asset.save(term)
         created  = (resp.mutated_entities.CREATE or []) if resp.mutated_entities else []
@@ -118,11 +164,11 @@ def push(pages: list[WikiPageRecord]):
             client.asset.save(readme)
         print(f"  ✓ [{action}] {page.page_name}")
 
-    # ── 4. Link see_also (Extends / Includes) ─────────────────────────────────
+    # ── 5. Link relationships (Extends → is_a, Includes → user_def_relationship_to) ──
     print("\nLinking cross-references (Extends / Includes)...")
     linked = 0
     for slug, page in slug_to_page.items():
-        update = build_see_also_update(page, slug_to_qn[slug], glossary_guid, slug_to_qn)
+        update = build_relationship_updates(page, slug_to_qn[slug], glossary_guid, slug_to_qn)
         if update:
             client.asset.save(update)
             linked += 1
@@ -130,7 +176,7 @@ def push(pages: list[WikiPageRecord]):
     if not linked:
         print("  (no cross-references found)")
 
-    print(f"\n✅ Done — {len(schema_pages)} terms pushed to {ATLAN_BASE_URL}")
+    print(f"\n✅ Done — {len(phase1_pages)} terms pushed to {ATLAN_BASE_URL}")
     print(f"   View at: {ATLAN_BASE_URL}/glossary")
 
 

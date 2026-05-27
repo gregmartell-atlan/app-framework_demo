@@ -158,6 +158,27 @@ def test_map_glossary_category_anchor_qn():
     assert cat.anchor.unique_attributes["qualifiedName"] == GLOSSARY_QN
 
 
+# ─── map_glossary_subcategory ─────────────────────────────────────────────────
+
+def test_map_glossary_subcategory_name():
+    parent = map_glossary_category("Client", GLOSSARY_QN)
+    sub = map_glossary_subcategory("Events", GLOSSARY_QN, parent_category=parent)
+    assert sub.name == "Events"
+
+
+def test_map_glossary_subcategory_anchor_qn():
+    parent = map_glossary_category("Client", GLOSSARY_QN)
+    sub = map_glossary_subcategory("Events", GLOSSARY_QN, parent_category=parent)
+    assert sub.anchor.unique_attributes["qualifiedName"] == GLOSSARY_QN
+
+
+def test_map_glossary_subcategory_has_parent():
+    parent = map_glossary_category("Native", GLOSSARY_QN)
+    sub = map_glossary_subcategory("Event Templates", GLOSSARY_QN, parent_category=parent)
+    # The sub-category should reference the parent category
+    assert sub.parent_category is not None
+
+
 # ─── map_wiki_page_as_term ────────────────────────────────────────────────────
 
 def test_wiki_term_name():
@@ -333,6 +354,80 @@ def test_build_see_also_update_links_resolved_slugs():
 
 def test_build_see_also_update_returns_none_when_no_refs_resolvable():
     update = build_see_also_update(WIKI_PAGE, "baseEvent@xyz", "glossary-guid-1", {})
+    assert update is None
+
+
+# ─── build_relationship_updates ──────────────────────────────────────────────
+
+EXTENDS_CONTENT = """\
+## Structure
+
+### Extends
+
+- [client baseClientEvent](client-baseClientEvent)
+
+### Includes
+
+- [consoleInfo](client-template-consoleInfo)
+- [nodeServerInfo](client-template-nodeServerInfo)
+"""
+
+EXTENDS_PAGE = WikiPageRecord(
+    repo_full_name="sony/telemetry",
+    page_path="client-AdTracking.md",
+    page_name="client AdTracking",
+    content=EXTENDS_CONTENT,
+    file_sha="xyz789",
+)
+
+
+def test_build_relationship_updates_returns_none_when_no_refs():
+    update = build_relationship_updates(WIKI_PAGE, "baseEvent@xyz", "glossary-guid-1", {})
+    assert update is None
+
+
+def test_build_relationship_updates_sets_is_a_for_extends():
+    slug_to_qn = {
+        "client-baseClientEvent": "baseClientEvent@abc",
+        "client-template-consoleInfo": "consoleInfo@abc",
+        "client-template-nodeServerInfo": "nodeServerInfo@abc",
+    }
+    update = build_relationship_updates(EXTENDS_PAGE, "adTracking@xyz", "glossary-guid-1", slug_to_qn)
+    assert update is not None
+    assert update.is_a is not None
+    assert len(update.is_a) == 1
+    assert update.is_a[0].qualified_name == "baseClientEvent@abc"
+
+
+def test_build_relationship_updates_sets_user_def_for_includes():
+    slug_to_qn = {
+        "client-baseClientEvent": "baseClientEvent@abc",
+        "client-template-consoleInfo": "consoleInfo@abc",
+        "client-template-nodeServerInfo": "nodeServerInfo@abc",
+    }
+    update = build_relationship_updates(EXTENDS_PAGE, "adTracking@xyz", "glossary-guid-1", slug_to_qn)
+    assert update is not None
+    assert update.user_def_relationship_to is not None
+    assert len(update.user_def_relationship_to) == 2
+
+
+def test_build_relationship_updates_only_includes_returns_update():
+    slug_to_qn = {
+        "client-template-consoleInfo": "consoleInfo@abc",
+        "client-template-nodeServerInfo": "nodeServerInfo@abc",
+    }
+    # WIKI_PAGE has no extends (root), but has includes
+    update = build_relationship_updates(WIKI_PAGE, "baseEvent@xyz", "glossary-guid-1", slug_to_qn)
+    assert update is not None
+    assert not update.is_a  # no extends
+    assert update.user_def_relationship_to is not None
+    assert len(update.user_def_relationship_to) == 2
+
+
+def test_build_relationship_updates_only_extends_no_is_a_when_unresolved():
+    slug_to_qn = {}
+    # Page has extends but slug not in map
+    update = build_relationship_updates(EXTENDS_PAGE, "adTracking@xyz", "glossary-guid-1", slug_to_qn)
     assert update is None
 
 
