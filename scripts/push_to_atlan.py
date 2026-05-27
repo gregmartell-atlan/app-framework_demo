@@ -21,6 +21,7 @@ from app.glossary_mapper import (
     map_wiki_page_as_term,
 )
 from pyatlan_v9.client.atlan import AtlanClient
+from pyatlan.errors import NotFoundError
 
 ATLAN_BASE_URL = os.environ.get("ATLAN_BASE_URL", "https://dsm.atlan.com")
 ATLAN_API_KEY  = os.environ["ATLAN_API_KEY"]
@@ -85,13 +86,20 @@ def push(pages: list[WikiPageRecord]):
     ]
     print(f"  Phase 1 filter: {len(phase1_pages)}/{len(schema_pages)} pages qualify (Client + Shared Schemas)")
 
-    # ── 1. Save glossary ─────────────────────────────────────────────────────
-    print(f"\nSaving glossary '{GLOSSARY_NAME}'...")
-    glossary = map_glossary(GLOSSARY_NAME)
-    resp = client.asset.save(glossary)
-    glossary_qn   = _saved_qn(resp)   or glossary.qualified_name
-    glossary_guid = _saved_guid(resp) or ""
-    print(f"  ✓ QN: {glossary_qn}  GUID: {glossary_guid}")
+    # ── 1. Find-or-create glossary ───────────────────────────────────────────
+    # creator() always generates a fresh random QN, so re-saving an existing
+    # glossary name throws ATLAS-409. Look it up first and reuse it if present.
+    print(f"\nResolving glossary '{GLOSSARY_NAME}'...")
+    try:
+        existing = client.asset.find_glossary_by_name(name=GLOSSARY_NAME)
+        glossary_qn   = existing.qualified_name
+        glossary_guid = existing.guid
+        print(f"  ✓ Reusing existing  QN: {glossary_qn}  GUID: {glossary_guid}")
+    except NotFoundError:
+        resp = client.asset.save(map_glossary(GLOSSARY_NAME))
+        glossary_qn   = _saved_qn(resp)
+        glossary_guid = _saved_guid(resp) or ""
+        print(f"  ✓ Created  QN: {glossary_qn}  GUID: {glossary_guid}")
 
     # ── 2. Save top-level categories ─────────────────────────────────────────
     # Determine which top-level tracks are needed
