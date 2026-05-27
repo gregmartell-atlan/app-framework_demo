@@ -222,6 +222,21 @@ class TransformInput(BaseModel):
         default="index",
         description="YAML content mode — must match the value used during extraction.",
     )
+    output_target: Literal["application_field", "glossary"] = Field(
+        default="application_field",
+        description=(
+            "'application_field' emits wiki/YAML pages as ApplicationField assets (original behaviour). "
+            "'glossary' emits wiki pages as AtlasGlossaryTerms organised under an AtlasGlossary, "
+            "with wiki nav sections as AtlasGlossaryCategory nodes."
+        ),
+    )
+    glossary_name: Optional[str] = Field(
+        default=None,
+        description=(
+            "Name for the target AtlasGlossary when output_target='glossary'. "
+            "Defaults to the GitHub org extracted from the first repo's full_name."
+        ),
+    )
 
 
 class TransformOutput(BaseModel):

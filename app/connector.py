@@ -20,6 +20,13 @@ from app.asset_mapper import (
     map_sbom_dependency,
     map_sbom_relationship,
 )
+from app.glossary_mapper import (
+    _infer_wiki_section,
+    map_glossary,
+    map_glossary_category,
+    map_wiki_page_as_term,
+    map_yaml_file_as_term,
+)
 from app.client import GitHubClient, SbomReportPending
 from app.contracts import (
     AuthInput,
@@ -283,27 +290,43 @@ class GitHubConnector(App):
 
         # Transform wiki pages
         if input.wiki_file:
-            with open(input.wiki_file.path, "r") as f:
-                for line in f:
-                    page_data = json.loads(line)
-                    page = WikiPageRecord(**page_data)
-                    asset = map_wiki_page(page, conn_qn, content_mode=input.wiki_content_mode)
-
-                    response = atlan_client.asset.save(asset)
-                    assets_created += 1
-                    wiki_pages_count += 1
+            if input.output_target == "glossary":
+                wiki_pages_count = await self._transform_wiki_to_glossary(
+                    atlan_client, input, assets_created
+                )
+                assets_created += wiki_pages_count
+            else:
+                with open(input.wiki_file.path, "r") as f:
+                    for line in f:
+                        page_data = json.loads(line)
+                        page = WikiPageRecord(**page_data)
+                        asset = map_wiki_page(page, conn_qn, content_mode=input.wiki_content_mode)
+                        atlan_client.asset.save(asset)
+                        assets_created += 1
+                        wiki_pages_count += 1
 
         # Transform YAML files
         if input.yaml_file:
-            with open(input.yaml_file.path, "r") as f:
-                for line in f:
-                    yaml_data = json.loads(line)
-                    yaml = YamlFileRecord(**yaml_data)
-                    asset = map_yaml_file(yaml, conn_qn, content_mode=input.yaml_content_mode)
-
-                    response = atlan_client.asset.save(asset)
-                    assets_created += 1
-                    yaml_files_count += 1
+            if input.output_target == "glossary":
+                # Requires glossary to exist — resolve QN then emit uncategorized terms
+                glossary_qn = self._resolve_glossary_qn(atlan_client, input)
+                with open(input.yaml_file.path, "r") as f:
+                    for line in f:
+                        yaml_data = json.loads(line)
+                        yaml_rec = YamlFileRecord(**yaml_data)
+                        term = map_yaml_file_as_term(yaml_rec, glossary_qn)
+                        atlan_client.asset.save(term)
+                        assets_created += 1
+                        yaml_files_count += 1
+            else:
+                with open(input.yaml_file.path, "r") as f:
+                    for line in f:
+                        yaml_data = json.loads(line)
+                        yaml_rec = YamlFileRecord(**yaml_data)
+                        asset = map_yaml_file(yaml_rec, conn_qn, content_mode=input.yaml_content_mode)
+                        atlan_client.asset.save(asset)
+                        assets_created += 1
+                        yaml_files_count += 1
 
         # Transform SBOM dependencies (Phase 2)
         if input.sbom_file:
@@ -365,3 +388,79 @@ class GitHubConnector(App):
             sbom_dependencies_count=sbom_dependencies_count,
             sbom_relationships_count=sbom_relationships_count,
         )
+
+    # ─── Glossary helpers ────────────────────────────────────────────────────
+
+    def _org_from_wiki_file(self, wiki_file_path: str) -> Optional[str]:
+        """Return the GitHub org from the first line of a wiki JSONL file."""
+        try:
+            with open(wiki_file_path, "r") as f:
+                line = f.readline()
+                if line:
+                    data = json.loads(line)
+                    full_name = data.get("repo_full_name", "")
+                    return full_name.split("/")[0] if "/" in full_name else None
+        except (OSError, json.JSONDecodeError, KeyError):
+            return None
+        return None
+
+    def _resolve_glossary_qn(self, atlan_client, input: TransformInput) -> str:
+        """Save (upsert) the glossary and return its server-assigned qualified_name."""
+        org = input.glossary_name
+        if not org and input.wiki_file:
+            org = self._org_from_wiki_file(input.wiki_file.path)
+        org = org or "github"
+        glossary = map_glossary(org)
+        response = atlan_client.asset.save(glossary)
+        created = (response.mutated_entities.CREATE or []) if response.mutated_entities else []
+        updated = (response.mutated_entities.UPDATE or []) if response.mutated_entities else []
+        saved = (created + updated)
+        if saved:
+            return saved[0].qualified_name
+        return glossary.qualified_name
+
+    async def _transform_wiki_to_glossary(
+        self, atlan_client, input: TransformInput, assets_so_far: int
+    ) -> int:
+        """Two-pass wiki → glossary term transform.
+
+        Pass 1: collect all unique wiki sections → save glossary + one category per section.
+        Pass 2: save one GlossaryTerm per wiki page, linked to its category.
+
+        Returns the number of terms created.
+        """
+        glossary_qn = self._resolve_glossary_qn(atlan_client, input)
+
+        # Pass 1: collect unique sections
+        sections: set[str] = set()
+        pages: list[WikiPageRecord] = []
+        with open(input.wiki_file.path, "r") as f:
+            for line in f:
+                page_data = json.loads(line)
+                page = WikiPageRecord(**page_data)
+                pages.append(page)
+                section = page.wiki_section or _infer_wiki_section(page.page_name)
+                if section:
+                    sections.add(section)
+
+        # Save categories and build lookup
+        category_by_section: dict[str, object] = {}
+        for section in sorted(sections):
+            cat = map_glossary_category(section, glossary_qn)
+            response = atlan_client.asset.save(cat)
+            created = (response.mutated_entities.CREATE or []) if response.mutated_entities else []
+            updated = (response.mutated_entities.UPDATE or []) if response.mutated_entities else []
+            saved_cat = (created + updated)
+            category_by_section[section] = saved_cat[0] if saved_cat else cat
+
+        # Pass 2: save terms
+        terms_created = 0
+        for page in pages:
+            from app.glossary_mapper import _infer_wiki_section
+            section = page.wiki_section or _infer_wiki_section(page.page_name)
+            category = category_by_section.get(section) if section else None
+            term = map_wiki_page_as_term(page, glossary_qn, category=category)
+            atlan_client.asset.save(term)
+            terms_created += 1
+
+        return terms_created
