@@ -1,0 +1,30 @@
+name: Push Wiki Glossary to Atlan
+
+on:
+  workflow_dispatch:
+    inputs:
+      atlan_base_url:
+        description: "Atlan tenant base URL"
+        required: true
+        default: "https://dsm.atlan.com"
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyatlan gitpython
+
+      - name: Push glossary
+        env:
+          ATLAN_BASE_URL: ${{ inputs.atlan_base_url }}
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: python scripts/push_to_atlan.py
