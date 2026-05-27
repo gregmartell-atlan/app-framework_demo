@@ -8,7 +8,7 @@ from pathlib import Path
 
 import git
 
-sys.path.insert(0, "/home/user/app-framework_demo")
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.api_types import WikiPageRecord
 from app.glossary_mapper import (
