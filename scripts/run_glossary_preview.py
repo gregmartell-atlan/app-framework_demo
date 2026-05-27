@@ -21,6 +21,7 @@ from git.exc import GitCommandError
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.api_types import WikiPageRecord
+from app.credentials import GitHubTokenCredential
 from app.glossary_mapper import (
     _infer_wiki_section,
     map_glossary,
