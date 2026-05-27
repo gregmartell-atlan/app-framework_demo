@@ -49,7 +49,10 @@ class WikiPageRecord:
     page_name: str  # e.g., "Home"
     content: str  # markdown content
     file_sha: Optional[str]  # git SHA if available
-    wiki_section: Optional[str] = None  # nav section, e.g., "Client Events"; inferred from title if absent
+    wiki_section: Optional[str] = None   # nav section, e.g., "Client Events"; inferred from title if absent
+    git_updated_at: Optional[int] = None  # unix timestamp (ms) of most recent commit touching this file
+    git_updated_by: Optional[str] = None  # commit author name of most recent commit
+    git_created_at: Optional[int] = None  # unix timestamp (ms) of first commit that introduced this file
 
 
 @dataclass(frozen=True)

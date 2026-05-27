@@ -8,6 +8,8 @@ from app.glossary_mapper import (
     _extract_section,
     _extract_template_field,
     _infer_wiki_section,
+    _parse_extends_includes,
+    build_see_also_update,
     map_glossary,
     map_glossary_category,
     map_wiki_page_as_term,
@@ -32,17 +34,18 @@ Base class of every Client Event. Contains properties common to all events.
 
 ## Classification justification
 
-(only relevant in case of SERVICE_DATA classification)
-
 Critical for Telemetry Service and Event QoS purposes.
 
 ## Structure
 
 ### Extends
 
+*(root — no parent)*
+
 ### Includes
-- consoleInfo
-- nodeServerInfo
+
+- [consoleInfo](client-template-consoleInfo)
+- [nodeServerInfo](client-template-nodeServerInfo)
 """
 
 WIKI_PAGE = WikiPageRecord(
@@ -52,6 +55,9 @@ WIKI_PAGE = WikiPageRecord(
     content=SONY_WIKI_CONTENT,
     file_sha="abc123",
     wiki_section="Client Events",
+    git_updated_at=1700000000000,
+    git_updated_by="sboskovic",
+    git_created_at=1571000000000,
 )
 
 YAML_FILE = YamlFileRecord(
@@ -227,6 +233,103 @@ def test_wiki_term_no_user_description_when_section_missing():
     )
     term = map_wiki_page_as_term(page, GLOSSARY_QN)
     assert not term.user_description  # UNSET when no Description section
+
+
+def test_wiki_term_owner_groups_from_business_owner():
+    term = map_wiki_page_as_term(WIKI_PAGE, GLOSSARY_QN)
+    assert "Ghost Team" in term.owner_groups
+
+
+def test_wiki_term_usage_from_classification_justification():
+    term = map_wiki_page_as_term(WIKI_PAGE, GLOSSARY_QN)
+    assert "Telemetry Service" in term.usage
+
+
+def test_wiki_term_usage_skipped_for_placeholder_text():
+    page = WikiPageRecord(
+        repo_full_name="sony/telemetry",
+        page_path="client-AdTracking.md",
+        page_name="client AdTracking",
+        content="## Classification justification\n\n*(only relevant in case of SERVICE_DATA classification)*\n",
+        file_sha=None,
+    )
+    term = map_wiki_page_as_term(page, GLOSSARY_QN)
+    assert not term.usage
+
+
+def test_wiki_term_git_timestamps_set():
+    term = map_wiki_page_as_term(WIKI_PAGE, GLOSSARY_QN)
+    assert term.source_updated_at == 1700000000000
+    assert term.source_updated_by == "sboskovic"
+    assert term.source_created_at == 1571000000000
+
+
+def test_wiki_term_git_timestamps_omitted_when_absent():
+    page = WikiPageRecord(
+        repo_full_name="sony/telemetry",
+        page_path="Home.md",
+        page_name="Home",
+        content="Welcome.",
+        file_sha=None,
+    )
+    term = map_wiki_page_as_term(page, GLOSSARY_QN)
+    assert not term.source_updated_at
+    assert not term.source_updated_by
+    assert not term.source_created_at
+
+
+# ─── _parse_extends_includes ─────────────────────────────────────────────────
+
+def test_parse_extends_root_returns_empty():
+    extends, includes = _parse_extends_includes(SONY_WIKI_CONTENT)
+    assert extends == []
+
+
+def test_parse_includes_slugs():
+    _, includes = _parse_extends_includes(SONY_WIKI_CONTENT)
+    assert "client-template-consoleInfo" in includes
+    assert "client-template-nodeServerInfo" in includes
+
+
+def test_parse_extends_with_parent():
+    content = """\
+## Structure
+
+### Extends
+
+- [tooling baseToolingEvent](tooling-baseToolingEvent)
+
+### Includes
+
+*(none)*
+"""
+    extends, includes = _parse_extends_includes(content)
+    assert extends == ["tooling-baseToolingEvent"]
+    assert includes == []
+
+
+def test_parse_extends_includes_no_structure_section():
+    extends, includes = _parse_extends_includes("## Description\nHello.")
+    assert extends == [] and includes == []
+
+
+# ─── build_see_also_update ────────────────────────────────────────────────────
+
+def test_build_see_also_update_links_resolved_slugs():
+    slug_to_qn = {
+        "client-template-consoleInfo":    "consoleInfo@abc",
+        "client-template-nodeServerInfo": "nodeServerInfo@abc",
+    }
+    update = build_see_also_update(WIKI_PAGE, "baseEvent@xyz", "glossary-guid-1", slug_to_qn)
+    assert update is not None
+    linked_qns = {t.qualified_name for t in update.see_also}
+    assert "consoleInfo@abc" in linked_qns
+    assert "nodeServerInfo@abc" in linked_qns
+
+
+def test_build_see_also_update_returns_none_when_no_refs_resolvable():
+    update = build_see_also_update(WIKI_PAGE, "baseEvent@xyz", "glossary-guid-1", {})
+    assert update is None
 
 
 # ─── map_yaml_file_as_term ────────────────────────────────────────────────────
