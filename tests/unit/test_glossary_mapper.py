@@ -9,9 +9,11 @@ from app.glossary_mapper import (
     _extract_template_field,
     _infer_wiki_section,
     _parse_extends_includes,
+    build_relationship_updates,
     build_see_also_update,
     map_glossary,
     map_glossary_category,
+    map_glossary_subcategory,
     map_wiki_page_as_term,
     map_yaml_file_as_term,
 )
@@ -73,17 +75,19 @@ GLOSSARY_QN = "-1779832499412"
 
 # ─── Section inference ────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("page_name,expected", [
-    ("client AdTracking", "Client Events"),
-    ("client baseClientEvent", "Client Events"),
-    ("CLIENT ExchangeTracking", "Client Events"),
-    ("native Navigation", "Native Events"),
-    ("tooling BuildPipeline", "Tooling Events"),
-    ("Home", None),
-    ("adtracking", None),
+@pytest.mark.parametrize("page_name,page_path,expected", [
+    ("client AdTracking",      "client-AdTracking.md",      ("Client",  "Events")),
+    ("client baseClientEvent", "client-baseClientEvent.md", ("Client",  "Event Templates")),
+    ("CLIENT ExchangeTracking","client-ExchangeTracking.md",("Client",  "Events")),
+    ("native Navigation",      "native-Navigation.md",      ("Native",  "Events")),
+    ("tooling BuildPipeline",  "tooling-BuildPipeline.md",  ("Tooling", "Events")),
+    ("client template consoleInfo", "client-template-consoleInfo.md", ("Client", "Event Templates")),
+    ("tooling template serviceInfo","tooling-template-serviceInfo.md",("Tooling","Event Templates")),
+    ("Home",       "Home.md",       (None, None)),
+    ("adtracking", "adtracking.md", (None, None)),
 ])
-def test_infer_wiki_section(page_name, expected):
-    assert _infer_wiki_section(page_name) == expected
+def test_infer_wiki_section(page_name, page_path, expected):
+    assert _infer_wiki_section(page_name, page_path) == expected
 
 
 # ─── Markdown extraction ──────────────────────────────────────────────────────

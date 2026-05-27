@@ -5,7 +5,8 @@ using the pyatlan_v9 SDK's creator() helpers.
 
 Hierarchy:
   AtlasGlossary      — one per GitHub org (e.g. "sony-telemetry")
-  AtlasGlossaryCategory — one per wiki nav section (e.g. "Client Events")
+  AtlasGlossaryCategory — top-level: Client / Native / Tooling / Shared Schemas
+  AtlasGlossaryCategory — sub-level: Events / Event Templates (under Client/Native/Tooling)
   AtlasGlossaryTerm  — one per wiki page or YAML file
 
 Wiki markdown parsing is best-effort. Pages that don't follow the Sony
@@ -16,23 +17,65 @@ import re
 from typing import Optional
 
 from pyatlan_v9.model.assets import AtlasGlossary, AtlasGlossaryCategory, AtlasGlossaryTerm, Readme
+from pyatlan_v9.model.assets.relations.relationship_attributes import UserDefRelationship
+from pyatlan_v9.model.enums import SaveSemantic
 
 from app.api_types import WikiPageRecord, YamlFileRecord
 
 # ─── Wiki nav section inference ─────────────────────────────────────────────
-_TITLE_PREFIX_TO_SECTION: list[tuple[str, str]] = [
-    ("client ", "Client Events"),
-    ("native ", "Native Events"),
-    ("tooling ", "Tooling Events"),
+
+_TRACK_PREFIXES: list[tuple[str, str]] = [
+    ("client-", "Client"),
+    ("native-", "Native"),
+    ("tooling-", "Tooling"),
 ]
 
 
-def _infer_wiki_section(page_name: str) -> Optional[str]:
-    lower = page_name.lower()
-    for prefix, section in _TITLE_PREFIX_TO_SECTION:
-        if lower.startswith(prefix):
-            return section
-    return None
+def _infer_wiki_section(page_name: str, page_path: str = "") -> tuple[str, Optional[str]]:
+    """Return (track, page_type) tuple.
+
+    track     : "Client" | "Native" | "Tooling" | "Shared Schemas" | None
+    page_type : "Events" | "Event Templates" | None
+
+    Classification rules:
+    - Slug contains '-template-' AND starts with known track prefix
+      → that track, "Event Templates"
+    - Slug contains '-template-' but no known track prefix
+      → "Shared Schemas", None
+    - Page name contains 'base' (case-insensitive) AND starts with track prefix
+      → that track, "Event Templates"
+    - Page name starts with known track name (space-separated) and is not a template
+      → that track, "Events"
+    """
+    slug = page_path.removesuffix(".md") if page_path else ""
+    lower_name = page_name.lower()
+    lower_slug = slug.lower()
+
+    # Check for -template- in slug
+    if "-template-" in lower_slug:
+        for slug_prefix, track in _TRACK_PREFIXES:
+            if lower_slug.startswith(slug_prefix):
+                return track, "Event Templates"
+        # template but not tied to a known track → Shared Schemas
+        return "Shared Schemas", None
+
+    # Check for 'base' in page name (base event pages are templates)
+    if "base" in lower_name:
+        for slug_prefix, track in _TRACK_PREFIXES:
+            if lower_slug.startswith(slug_prefix):
+                return track, "Event Templates"
+
+    # Regular event pages: check page name prefix
+    _NAME_PREFIX_TO_TRACK: list[tuple[str, str]] = [
+        ("client ", "Client"),
+        ("native ", "Native"),
+        ("tooling ", "Tooling"),
+    ]
+    for name_prefix, track in _NAME_PREFIX_TO_TRACK:
+        if lower_name.startswith(name_prefix):
+            return track, "Events"
+
+    return None, None
 
 
 # ─── Markdown field extraction ───────────────────────────────────────────────
@@ -108,9 +151,23 @@ def map_glossary(org: str) -> AtlasGlossary:
 
 
 def map_glossary_category(section_name: str, glossary_qn: str) -> AtlasGlossaryCategory:
+    """Create a top-level glossary category (no parent)."""
     return AtlasGlossaryCategory.creator(
         name=section_name,
         glossary_qualified_name=glossary_qn,
+    )
+
+
+def map_glossary_subcategory(
+    name: str,
+    glossary_qn: str,
+    parent_category: AtlasGlossaryCategory,
+) -> AtlasGlossaryCategory:
+    """Create a sub-category nested under parent_category."""
+    return AtlasGlossaryCategory.creator(
+        name=name,
+        glossary_qualified_name=glossary_qn,
+        parent_category=parent_category,
     )
 
 
@@ -131,7 +188,7 @@ def map_wiki_page_as_term(
       source_updated_at — ms timestamp of last git commit on this file
       source_updated_by — author name of last git commit
       source_created_at — ms timestamp of first git commit on this file
-      categories        — wiki nav section category
+      categories        — wiki nav section category (sub-category when hierarchy is used)
     """
     cats = [category] if category else []
 
@@ -201,6 +258,54 @@ def build_see_also_update(
         glossary_guid=glossary_guid,
     )
     update.see_also = [AtlasGlossaryTerm.ref_by_qualified_name(qn) for qn in related_qns]
+    return update
+
+
+def build_relationship_updates(
+    page: WikiPageRecord,
+    term_qn: str,
+    glossary_guid: str,
+    slug_to_qn: dict[str, str],
+) -> Optional[AtlasGlossaryTerm]:
+    """Return a minimal term update that sets is_a (Extends) and user_def_relationship_to (Includes).
+
+    Extends → is_a (single parent, first resolved slug wins)
+    Includes → user_def_relationship_to with APPEND semantic
+
+    Returns None if the page has no resolvable cross-references.
+    slug_to_qn maps page_path stems (e.g. 'client-baseClientEvent') to the
+    saved term's qualified_name.
+    """
+    extends_slugs, includes_slugs = _parse_extends_includes(page.content)
+
+    resolved_extends = [slug_to_qn[s] for s in extends_slugs if s in slug_to_qn]
+    resolved_includes = [slug_to_qn[s] for s in includes_slugs if s in slug_to_qn]
+
+    if not resolved_extends and not resolved_includes:
+        return None
+
+    update = AtlasGlossaryTerm.updater(
+        qualified_name=term_qn,
+        name=page.page_name,
+        glossary_guid=glossary_guid,
+    )
+
+    # Extends → is_a (single parent)
+    if resolved_extends:
+        parent_ref = AtlasGlossaryTerm.ref_by_qualified_name(resolved_extends[0])
+        update.is_a = [parent_ref]
+
+    # Includes → user_def_relationship_to (many edges, APPEND semantic)
+    if resolved_includes:
+        rel = UserDefRelationship(from_type_label="includes", to_type_label="included by")
+        update.user_def_relationship_to = [
+            rel.user_def_relationship_to(
+                AtlasGlossaryTerm.ref_by_qualified_name(qn),
+                semantic=SaveSemantic.APPEND,
+            )
+            for qn in resolved_includes
+        ]
+
     return update
 
 
