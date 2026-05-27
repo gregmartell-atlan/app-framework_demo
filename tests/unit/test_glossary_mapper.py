@@ -157,7 +157,7 @@ def test_wiki_term_name():
 
 def test_wiki_term_description_extracted_from_markdown():
     term = map_wiki_page_as_term(WIKI_PAGE, GLOSSARY_QN)
-    assert "Base class of every Client Event" in term.description
+    assert "Base class of every Client Event" in term.user_description
 
 
 def test_wiki_term_long_description_is_full_content():
@@ -170,11 +170,9 @@ def test_wiki_term_owner_users_from_contact_person():
     assert "sboskovic" in term.owner_users
 
 
-def test_wiki_term_user_description_packs_metadata():
+def test_wiki_term_user_description_is_wiki_description():
     term = map_wiki_page_as_term(WIKI_PAGE, GLOSSARY_QN)
-    assert "owner=Ghost Team" in term.user_description
-    assert "schema_version=2.8.2" in term.user_description
-    assert "blob_sha=abc123" in term.user_description
+    assert "Base class of every Client Event" in term.user_description
 
 
 def test_wiki_term_source_url():
@@ -213,13 +211,13 @@ def test_wiki_term_uses_wiki_section_field_over_inference():
         page_name="client AdTracking",
         content="## Description\nAd tracking.\n",
         file_sha=None,
-        wiki_section="Native Events",  # explicitly set, overrides title inference
+        wiki_section="Native Events",
     )
     term = map_wiki_page_as_term(page, GLOSSARY_QN)
-    assert "section=Native Events" in term.user_description
+    assert term.user_description == "Ad tracking."
 
 
-def test_wiki_term_no_description_when_section_missing():
+def test_wiki_term_no_user_description_when_section_missing():
     page = WikiPageRecord(
         repo_full_name="sony/telemetry",
         page_path="Home.md",
@@ -228,7 +226,7 @@ def test_wiki_term_no_description_when_section_missing():
         file_sha=None,
     )
     term = map_wiki_page_as_term(page, GLOSSARY_QN)
-    assert not term.description  # None or UNSET when no Description section
+    assert not term.user_description  # UNSET when no Description section
 
 
 # ─── map_yaml_file_as_term ────────────────────────────────────────────────────

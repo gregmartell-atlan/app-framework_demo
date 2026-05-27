@@ -116,28 +116,14 @@ def map_wiki_page_as_term(
 
     description = _extract_section(page.content, "Description")
     if description:
-        term.description = description
+        term.user_description = description  # shown as "Description" in the Atlan UI
 
-    term.long_description = page.content
+    term.long_description = page.content  # shown as "Readme" in the Atlan UI
 
     contact_raw = _extract_template_field(page.content, "Contact Person")
     handles = _contact_handles(contact_raw)
     if handles:
         term.owner_users = handles
-
-    biz_owner = _extract_template_field(page.content, "Business owner")
-    schema_ver = _extract_template_field(page.content, "Schema Version")
-    meta_parts = []
-    if biz_owner:
-        meta_parts.append(f"owner={biz_owner}")
-    if section:
-        meta_parts.append(f"section={section}")
-    if schema_ver:
-        meta_parts.append(f"schema_version={schema_ver}")
-    if page.file_sha:
-        meta_parts.append(f"blob_sha={page.file_sha}")
-    if meta_parts:
-        term.user_description = " | ".join(meta_parts)
 
     org, repo = page.repo_full_name.split("/", 1)
     slug = page.page_path.removesuffix(".md")
