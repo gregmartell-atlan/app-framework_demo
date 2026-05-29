@@ -1,0 +1,2 @@
+pyatlan>=9.6,<10
+gitpython>=3.1,<4
