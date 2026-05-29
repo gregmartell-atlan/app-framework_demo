@@ -27,27 +27,6 @@ credentialType {
   }
 }
 
-// Atlan tenant credential — used by the github:sync_glossary task to
-// write glossary terms back to the connected Atlan tenant.
-atlanCredentialType {
-  type = "atlan_api_key"
-  name = "Atlan API Key"
-  description = "Atlan tenant base URL + API key used to write glossary assets"
-  fields {
-    ["base_url"] {
-      type = "text"
-      label = "Atlan Base URL"
-      required = true
-      helpText = "e.g. https://dsm.atlan.com"
-    }
-    ["api_key"] {
-      type = "password"
-      label = "Atlan API Key"
-      required = true
-    }
-  }
-}
-
 // Workflow form configuration
 form {
   // Step 1: Authentication
@@ -116,9 +95,9 @@ form {
         label = "Atlan Credential"
         required = true
         anyOf {
-          ["atlan_api_key"] = "Atlan API Key"
+          ["atlan_api_token"] = "Atlan API Token"
         }
-        helpText = "Atlan tenant base URL + API key used to write glossary terms"
+        helpText = "Atlan tenant credential used to write glossary terms"
       }
     }
   }
@@ -204,11 +183,16 @@ tasks {
     }
   }
 
-  ["publish"] {
-    label = "Publish to Atlan"
-    description = "Write transformed assets to Atlan"
-    type = "publish"
-    dependencies = List("transform")
+  ["fetch_sbom"] {
+    label = "Fetch SBOM"
+    description = "Generate and download Software Bill of Materials for repositories"
+    type = "metadata"
+    outputs {
+      ["sbom_files"] = "List of SBOM file references"
+      ["successful_repos"] = "Repos with successful SBOM generation"
+      ["failed_repos"] = "Repos that failed SBOM generation"
+      ["summary"] = "Summary of SBOM generation results"
+    }
   }
 
   // Option C — standalone glossary sync task. Independent of the

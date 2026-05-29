@@ -16,10 +16,10 @@ decision below maps to a checklist item:
 | Checklist item | Implementation |
 |----------------|----------------|
 | §1 SDK pin `atlan-application-sdk==3.4.0` | `pyproject.toml` |
-| §1 Single `App` subclass with `@task` only | `app/connector.py` extends `BaseMetadataExtractor` |
+| §1 Single `App` subclass with `@task` only | `app/connector.py` extends `App` via `AtlanClientMixin` |
 | §1 Typed `Input`/`Output` at every boundary | `app/contracts.py` (Pydantic + `MaxItems` + `FileReference`) |
 | §1 `Handler` with typed signatures | `app/handler.py` uses `AuthInput/AuthOutput`, etc. |
-| §1 `create_async_atlan_client` + typed credentials | `app/credentials.py` registers `GitHubTokenCredential` |
+| §1 `AtlanClientMixin.get_or_create_async_atlan_client` + typed credentials | `app/connector.py` mixes in `AtlanClientMixin`; `app/credentials.py` registers `GitHubTokenCredential` |
 | §2 `contract/app.pkl` + generated artifacts committed | `contract/app.pkl` → `app/generated/` |
 | §2 `poe generate` task wired | `pyproject.toml` `[tool.poe.tasks]` |
 | §3 `FROM registry.atlan.com/public/app-runtime-base:3` | `Dockerfile` |
@@ -43,7 +43,7 @@ atlan-github-app/
 │   └── app.pkl                 # SOURCE OF TRUTH for all config
 ├── app/
 │   ├── __init__.py
-│   ├── connector.py            # GitHubConnector — App subclass, @entrypoint, @task
+│   ├── connector.py            # GitHubConnector — AtlanClientMixin+App, @entrypoint, @task
 │   ├── handler.py              # GitHubHandler — typed test_auth/preflight/fetch_metadata
 │   ├── client.py               # async httpx GitHub REST client (paginates Link header)
 │   ├── api_types.py            # frozen dataclasses for raw GitHub records
@@ -188,7 +188,7 @@ helm install atlan-github-app ./helm/atlan-github-app \
 | JSON schema of every generated artifact | sandbox (this build) |
 | v3-compliance verification (imports, types, patterns) | verified in final commit |
 | Pydantic round-trip / unit tests | `pytest tests/unit/` |
-| Handler boot probe (health/manifest endpoints) | `tests/integration/test_boot_probe.py` |
+| Handler boot probe (health/manifest endpoints) | `tests/integration/test_boot_probe.py` — requires `uv sync` + `poe generate` first |
 | Live extraction against real GitHub repos | **needs your Mac + PAT** — see `tests/e2e/RUN_LIVE.md` |
 | SBOM heartbeat resume pattern | unit-tested in `test_contracts.py::test_sbom_progress_heartbeat` |
 | Helm chart syntax | validated via `helm lint` (TODO: run in CI) |

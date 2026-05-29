@@ -39,9 +39,20 @@ class MetadataStepInput(BaseModel):
     preflight_check: bool = Field(default=True, description="Run preflight check")
 
 
+class SyncGlossaryStepInput(BaseModel):
+    """Glossary sync step input."""
+
+    repo_full_name: str = Field(..., description="GitHub repository (org/repo) whose wiki to sync")
+    glossary_name: str = Field(..., description="Target Atlan glossary name")
+    phase1_filter: bool = Field(default=True, description="Phase 1 filter toggle")
+    dry_run: bool = Field(default=False, description="Dry-run toggle")
+    atlan_credential: Optional[dict] = Field(None, description="Atlan API token credential")
+
+
 class WorkflowInput(BaseModel):
     """Complete workflow input (all steps combined)."""
 
     auth: AuthStepInput
     preflight: PreflightStepInput
     metadata: MetadataStepInput
+    sync_glossary: Optional[SyncGlossaryStepInput] = None

@@ -4,7 +4,7 @@ Implements GitHubTokenCredential and registers it with the SDK's credential syst
 Also implements AtlanCredential (base_url + api_key) for the glossary-sync task.
 """
 
-from typing import Any, ClassVar
+from typing import Any
 
 from pydantic import BaseModel, Field
 from application_sdk.credentials import register_credential_type
@@ -53,11 +53,9 @@ register_credential_type("github_token", GitHubTokenCredential, _parse_github_to
 class AtlanCredential(BaseModel):
     """Atlan tenant credential — base URL + API key.
 
-    Used by the glossary-sync task (Option C) when running inside the Atlan
-    App Framework. The script and workflow paths read these as env vars.
+    Used by the standalone script (Option B) and workflow (Option A) paths.
+    Option C uses the framework's built-in atlan_api_token credential type instead.
     """
-
-    credential_type: ClassVar[str] = "atlan_api_key"
 
     base_url: str = Field(..., description="Atlan tenant base URL, e.g. https://dsm.atlan.com")
     api_key: str = Field(..., description="Atlan API key")
@@ -66,17 +64,10 @@ class AtlanCredential(BaseModel):
         if not self.base_url:
             raise CredentialValidationError(
                 "AtlanCredential.base_url must not be empty",
-                credential_name="atlan_api_key",
+                credential_name="atlan_credential",
             )
         if not self.api_key:
             raise CredentialValidationError(
                 "AtlanCredential.api_key must not be empty",
-                credential_name="atlan_api_key",
+                credential_name="atlan_credential",
             )
-
-
-def _parse_atlan_api_key(data: dict[str, Any]) -> AtlanCredential:
-    return AtlanCredential(base_url=data["base_url"], api_key=data["api_key"])
-
-
-register_credential_type("atlan_api_key", AtlanCredential, _parse_atlan_api_key)

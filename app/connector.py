@@ -6,13 +6,14 @@ Activity naming: github:task_name (verified by v3-readiness workflow).
 
 import asyncio
 import json
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from typing import ClassVar
 
-from application_sdk.app import App, task, entrypoint
-from pyatlan_v9.client.atlan import AtlanClient
+from application_sdk.app import App, task, entrypoint, AtlanClientMixin
 
 from app.api_types import RepoRecord, WikiPageRecord, YamlFileRecord, SbomDependencyRecord
 from app.asset_mapper import (
@@ -50,7 +51,7 @@ from app.credentials import GitHubTokenCredential
 from app.handler import handle_auth, handle_preflight, handle_glossary_sync
 
 
-class GitHubConnector(App):
+class GitHubConnector(AtlanClientMixin, App):
     """Atlan GitHub connector — extracts repos, wikis, YAML files, and SBOMs.
 
     v3-compliant:
@@ -95,7 +96,7 @@ class GitHubConnector(App):
         token = input.credential.get("token")
         cred = GitHubTokenCredential(token=token)
 
-        output_dir = Path(self.task_context.working_directory) / "output"
+        output_dir = Path(tempfile.gettempdir()) / "atlan-github" / self.context.run_id / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
 
         repos_file = output_dir / "repos.jsonl"
@@ -179,7 +180,7 @@ class GitHubConnector(App):
         sbom_files = []
 
         # Check for previous heartbeat (resume support)
-        prev_progress: Optional[SbomProgress] = await self.task_context.get_heartbeat_details(SbomProgress)
+        prev_progress: Optional[SbomProgress] = self.task_context.get_heartbeat_details(SbomProgress)
         skip_until = prev_progress.repo_full_name if prev_progress else None
 
         async with GitHubClient(cred, concurrency_limit=4) as client:  # Lower concurrency for SBOM (heavy operation)
@@ -206,10 +207,10 @@ class GitHubConnector(App):
                 try:
                     # Kick off SBOM generation
                     report_id = await client.start_sbom_report(repo_full_name)
-                    started_at = self.task_context.current_time_iso()
+                    started_at = datetime.now(timezone.utc).isoformat()
 
                     # Heartbeat with current progress
-                    await self.task_context.heartbeat(SbomProgress(
+                    self.task_context.heartbeat(SbomProgress(
                         repo_full_name=repo_full_name,
                         report_id=report_id,
                         started_at_iso=started_at,
@@ -230,7 +231,7 @@ class GitHubConnector(App):
                                 break
                         except SbomReportPending:
                             poll_attempts += 1
-                            await self.task_context.heartbeat(SbomProgress(
+                            self.task_context.heartbeat(SbomProgress(
                                 repo_full_name=repo_full_name,
                                 report_id=report_id,
                                 started_at_iso=started_at,
@@ -272,7 +273,12 @@ class GitHubConnector(App):
         Returns:
             TransformOutput with asset counts
         """
-        atlan_client = self.task_context.atlan_client
+        from pyatlan_v9.client.atlan import AtlanClient as _AtlanClient
+        _cred = input.atlan_credential
+        atlan_client = _AtlanClient(
+            base_url=_cred.get("base_url", ""),
+            api_key=_cred.get("api_key", ""),
+        ) if _cred else None
         conn_qn = input.connection_qualified_name
 
         assets_created = 0

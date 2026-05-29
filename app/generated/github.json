@@ -86,5 +86,44 @@
         "helpText": "Validate credentials and permissions before extraction"
       }
     }
+  },
+  "sync_glossary": {
+    "label": "Glossary Sync",
+    "description": "Configure the wiki → glossary sync task",
+    "properties": {
+      "repo_full_name": {
+        "type": "text",
+        "label": "GitHub Repository (org/repo)",
+        "required": true,
+        "helpText": "The repository whose wiki should be synced, e.g. acme/telemetry"
+      },
+      "glossary_name": {
+        "type": "text",
+        "label": "Glossary Name",
+        "required": true,
+        "helpText": "Target Atlan glossary; will be created if missing"
+      },
+      "phase1_filter": {
+        "type": "switch",
+        "label": "Phase 1 filter",
+        "default": true,
+        "helpText": "If on, only push Client + Shared Schemas pages"
+      },
+      "dry_run": {
+        "type": "switch",
+        "label": "Dry run",
+        "default": false,
+        "helpText": "Log what would be saved; never write to Atlan"
+      },
+      "atlan_credential": {
+        "type": "credential",
+        "label": "Atlan Credential",
+        "required": true,
+        "anyOf": {
+          "atlan_api_token": "Atlan API Token"
+        },
+        "helpText": "Atlan tenant credential used to write glossary terms"
+      }
+    }
   }
 }

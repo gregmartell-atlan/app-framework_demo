@@ -7,7 +7,7 @@
   "connectorType": "source",
   "certified": false,
   "previewStatus": false,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "tasks": {
     "extract": {
       "name": "github:fetch_repos",
@@ -106,16 +106,62 @@
         }
       }
     },
-    "publish": {
-      "name": "github:publish",
-      "label": "Publish to Atlan",
-      "description": "Write transformed assets to Atlan",
-      "type": "publish",
-      "dependencies": ["transform"],
-      "timeout": 1800,
+    "fetch_sbom": {
+      "name": "github:fetch_sbom",
+      "label": "Fetch SBOM",
+      "description": "Generate and download Software Bill of Materials for repositories",
+      "type": "metadata",
+      "timeout": 3600,
       "retry": {
         "maxAttempts": 3,
         "backoff": "exponential"
+      },
+      "outputs": {
+        "sbom_files": {
+          "type": "array",
+          "description": "List of SBOM file references"
+        },
+        "successful_repos": {
+          "type": "array",
+          "description": "Repos with successful SBOM generation"
+        },
+        "failed_repos": {
+          "type": "array",
+          "description": "Repos that failed SBOM generation"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary of SBOM generation results"
+        }
+      }
+    },
+    "sync_glossary": {
+      "name": "github:sync_glossary",
+      "label": "Sync Wiki to Atlan Glossary",
+      "description": "Clone the GitHub wiki and upsert glossary terms in Atlan",
+      "type": "metadata",
+      "timeout": 1800,
+      "retry": {
+        "maxAttempts": 2,
+        "backoff": "exponential"
+      },
+      "outputs": {
+        "glossary_qn": {
+          "type": "string",
+          "description": "Qualified name of the target glossary"
+        },
+        "terms_created": {
+          "type": "number",
+          "description": "Count of new glossary terms created"
+        },
+        "terms_updated": {
+          "type": "number",
+          "description": "Count of glossary terms updated"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Human-readable run summary"
+        }
       }
     }
   },

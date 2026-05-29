@@ -185,26 +185,11 @@ class FetchSbomOutput(Output, allow_unbounded_fields=True):
     summary: str = Field(..., description="Summary of SBOM generation results")
 
 
-class TransformSbomInput(BaseModel):
-    """Input for transforming SBOM data to Atlan assets."""
-
-    sbom_file: FileReference = Field(..., description="SBOM dependencies file")
-    connection_qualified_name: str = Field(..., description="Atlan connection QN")
-
-
-class TransformSbomOutput(BaseModel):
-    """Output from SBOM transformation."""
-
-    dependencies_created: int = Field(default=0, description="ApplicationField assets created for dependencies")
-    relationships_created: int = Field(default=0, description="Process assets created for DEPENDS_ON relationships")
-    summary: str = Field(..., description="Transformation summary")
-
-
 # ============================================================================
 # Transform task contracts
 # ============================================================================
 
-class TransformInput(Input):
+class TransformInput(Input, allow_unbounded_fields=True):
     """Input for the transform task."""
 
     repos_file: Optional[FileReference] = Field(None, description="Repository data file")
@@ -238,6 +223,10 @@ class TransformInput(Input):
             "Name for the target AtlasGlossary when output_target='glossary'. "
             "Defaults to the GitHub org extracted from the first repo's full_name."
         ),
+    )
+    atlan_credential: dict = Field(
+        default_factory=dict,
+        description="Atlan credential dict with base_url + api_key. If empty, Atlan saves are skipped.",
     )
 
 

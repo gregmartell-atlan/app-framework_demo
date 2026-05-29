@@ -12,8 +12,6 @@ from app.contracts import (
     AuthOutput,
     PreflightInput,
     PreflightOutput,
-    GitHubExtractionInput,
-    GitHubExtractionOutput,
     GlossarySyncConfig,
     GlossarySyncInput,
     GlossarySyncOutput,
@@ -136,29 +134,6 @@ async def handle_preflight(input: PreflightInput) -> PreflightOutput:
             message=f"Preflight failed: {str(e)}",
             scopes=[],
         )
-
-
-async def handle_metadata_extraction(input: GitHubExtractionInput, task_context) -> GitHubExtractionOutput:
-    """Main metadata extraction logic (placeholder — actual extraction is in connector.py tasks).
-
-    This handler is a lightweight orchestrator; the real work happens in @task-decorated methods.
-
-    Args:
-        input: GitHubExtractionInput with all extraction config
-        task_context: App task context
-
-    Returns:
-        GitHubExtractionOutput with file references and counts
-    """
-    # In a real v3 app, this would dispatch to @task methods and aggregate results
-    # For now, return a stub output
-    return GitHubExtractionOutput(
-        extraction_summary="Metadata extraction not yet implemented in handler",
-        repos_count=0,
-        wiki_pages_count=0,
-        yaml_files_count=0,
-        sbom_dependencies_count=0,
-    )
 
 
 async def handle_glossary_sync(input: GlossarySyncInput) -> GlossarySyncOutput:

@@ -73,11 +73,12 @@ def test_github_token_credential_registered():
     assert cls.__name__ == "GitHubTokenCredential"
 
 
-def test_atlan_api_key_credential_registered():
+def test_atlan_api_token_builtin_registered():
+    """Framework ships atlan_api_token built-in; we use it instead of a custom type."""
     r = CredentialTypeRegistry()
-    cls = r.get_class("atlan_api_key")
+    cls = r.get_class("atlan_api_token")
     assert cls is not None
-    assert cls.__name__ == "AtlanCredential"
+    assert cls.__name__ == "AtlanApiToken"
 
 
 # ─── Contract round-trip (model_dump / model_validate) ───────────────────────

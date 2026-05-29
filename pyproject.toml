@@ -12,7 +12,7 @@ dependencies = [
     "atlan-application-sdk==3.4.0",
     "httpx>=0.27,<0.29",
     "pydantic>=2.7,<3",
-    "pyatlan-v9>=2.0,<3",
+    "pyatlan>=9.6,<10",
     # Git operations for wiki cloning (v3 compliance rule 11)
     "GitPython>=3.1,<4",
 ]
