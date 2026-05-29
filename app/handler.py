@@ -14,8 +14,11 @@ from app.contracts import (
     PreflightOutput,
     GitHubExtractionInput,
     GitHubExtractionOutput,
+    GlossarySyncConfig,
+    GlossarySyncInput,
+    GlossarySyncOutput,
 )
-from app.credentials import GitHubTokenCredential
+from app.credentials import AtlanCredential, GitHubTokenCredential
 
 
 async def handle_auth(input: AuthInput) -> AuthOutput:
@@ -156,3 +159,53 @@ async def handle_metadata_extraction(input: GitHubExtractionInput, task_context)
         yaml_files_count=0,
         sbom_dependencies_count=0,
     )
+
+
+async def handle_glossary_sync(input: GlossarySyncInput) -> GlossarySyncOutput:
+    """Handler for the github:sync_glossary task (Option C).
+
+    Parses both credentials, builds an AtlanClient, and delegates to the
+    shared sync routine in app.glossary_sync.
+
+    Note: this keeps the existing sync AtlanClient usage. Switching to
+    task_context.atlan_client / create_async_atlan_client is part of the
+    pre-existing v3-readiness debt and is out of scope here.
+    """
+    # Late imports keep app.handler importable in environments where
+    # pyatlan_v9 or gitpython are not installed (e.g. unit tests that mock).
+    from app.glossary_sync import sync_wiki_to_glossary
+    from pyatlan_v9.client.atlan import AtlanClient
+
+    gh_cred = GitHubTokenCredential(token=input.github_credential["token"])
+    await gh_cred.validate()
+
+    atlan_cred = AtlanCredential(
+        base_url=input.atlan_credential["base_url"],
+        api_key=input.atlan_credential["api_key"],
+    )
+    await atlan_cred.validate()
+
+    cfg = GlossarySyncConfig(
+        repo_full_name=input.repo_full_name,
+        github_token=gh_cred.token,
+        glossary_name=input.glossary_name,
+        phase1_filter=input.phase1_filter,
+        dry_run=input.dry_run,
+    )
+
+    client = AtlanClient(base_url=atlan_cred.base_url, api_key=atlan_cred.api_key)
+    result = await sync_wiki_to_glossary(cfg, client)
+
+    summary = (
+        f"glossary={result.glossary_qn or '(none)'} "
+        f"pages_scanned={result.pages_scanned} "
+        f"filtered_out={result.pages_filtered_out} "
+        f"categories={result.categories_created} "
+        f"terms_created={result.terms_created} "
+        f"terms_updated={result.terms_updated} "
+        f"readmes={result.readmes_saved} "
+        f"relationships={result.relationships_linked} "
+        f"errors={len(result.errors)} "
+        f"dry_run={result.dry_run}"
+    )
+    return GlossarySyncOutput(**result.model_dump(), summary=summary)

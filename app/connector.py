@@ -41,9 +41,11 @@ from app.contracts import (
     TransformInput,
     TransformOutput,
     FileReference,
+    GlossarySyncInput,
+    GlossarySyncOutput,
 )
 from app.credentials import GitHubTokenCredential
-from app.handler import handle_auth, handle_preflight
+from app.handler import handle_auth, handle_preflight, handle_glossary_sync
 
 
 class GitHubConnector(App):
@@ -464,3 +466,14 @@ class GitHubConnector(App):
             terms_created += 1
 
         return terms_created
+
+    # ─── Option C: standalone glossary sync task ────────────────────────────
+    #
+    # Additive task — does not touch the existing extract/transform DAG.
+    # Calls the shared sync routine in app.glossary_sync so behaviour matches
+    # Option A (workflow) and Option B (script) exactly.
+
+    @task(name="github:sync_glossary", timeout_seconds=1800, retry_max_attempts=2)
+    async def sync_glossary(self, input: GlossarySyncInput) -> GlossarySyncOutput:
+        """Sync a GitHub wiki to an Atlan glossary (additive, side-effect-free of existing DAG)."""
+        return await handle_glossary_sync(input)

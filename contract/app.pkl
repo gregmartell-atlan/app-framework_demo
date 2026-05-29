@@ -12,7 +12,7 @@ connectorType = "source"
 certified = false
 previewStatus = false
 
-// Credential type definition
+// Credential type definitions
 credentialType {
   type = "github_token"
   name = "GitHub Personal Access Token"
@@ -23,6 +23,27 @@ credentialType {
       label = "Personal Access Token"
       required = true
       helpText = "GitHub PAT with repo and read:org scopes"
+    }
+  }
+}
+
+// Atlan tenant credential — used by the github:sync_glossary task to
+// write glossary terms back to the connected Atlan tenant.
+atlanCredentialType {
+  type = "atlan_api_key"
+  name = "Atlan API Key"
+  description = "Atlan tenant base URL + API key used to write glossary assets"
+  fields {
+    ["base_url"] {
+      type = "text"
+      label = "Atlan Base URL"
+      required = true
+      helpText = "e.g. https://dsm.atlan.com"
+    }
+    ["api_key"] {
+      type = "password"
+      label = "Atlan API Key"
+      required = true
     }
   }
 }
@@ -61,6 +82,43 @@ form {
         required = false
         readOnly = true
         helpText = "Results of the preflight validation"
+      }
+    }
+  }
+
+  // Step 3b: Glossary Sync (Option C) — configures the github:sync_glossary task
+  ["sync_glossary"] {
+    label = "Glossary Sync"
+    description = "Configure the wiki → glossary sync task"
+    properties {
+      ["repo_full_name"] = new Config.TextInput {
+        label = "GitHub Repository (org/repo)"
+        required = true
+        helpText = "The repository whose wiki should be synced, e.g. acme/telemetry"
+      }
+      ["glossary_name"] = new Config.TextInput {
+        label = "Glossary Name"
+        required = true
+        default = "ghost_tsushima"
+        helpText = "Target Atlan glossary; will be created if missing"
+      }
+      ["phase1_filter"] = new Config.Switch {
+        label = "Phase 1 filter"
+        default = true
+        helpText = "If on, only push Client + Shared Schemas pages"
+      }
+      ["dry_run"] = new Config.Switch {
+        label = "Dry run"
+        default = false
+        helpText = "Log what would be saved; never write to Atlan"
+      }
+      ["atlan_credential"] = new Config.CredentialInput {
+        label = "Atlan Credential"
+        required = true
+        anyOf {
+          ["atlan_api_key"] = "Atlan API Key"
+        }
+        helpText = "Atlan tenant base URL + API key used to write glossary terms"
       }
     }
   }
@@ -151,6 +209,21 @@ tasks {
     description = "Write transformed assets to Atlan"
     type = "publish"
     dependencies = List("transform")
+  }
+
+  // Option C — standalone glossary sync task. Independent of the
+  // extract/transform/publish DAG above so Sony can run it on its own
+  // (e.g. on a gollum wiki edit).
+  ["sync_glossary"] {
+    label = "Sync Wiki to Atlan Glossary"
+    description = "Clone the GitHub wiki and upsert glossary terms in Atlan"
+    type = "metadata"
+    outputs {
+      ["glossary_qn"] = "Qualified name of the target glossary"
+      ["terms_created"] = "Count of new glossary terms created"
+      ["terms_updated"] = "Count of glossary terms updated"
+      ["summary"] = "Human-readable run summary"
+    }
   }
 }
 
