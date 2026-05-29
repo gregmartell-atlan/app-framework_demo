@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from typing import ClassVar
+
 from application_sdk.app import App, task, entrypoint
 from pyatlan_v9.client.atlan import AtlanClient
 
@@ -57,6 +59,9 @@ class GitHubConnector(App):
     - Uses @task for async activities
     - All methods have typed Input/Output (no bare Dict/Any)
     """
+
+    name: ClassVar[str] = "github"
+    version: ClassVar[str] = "1.0.0"
 
     @entrypoint
     async def auth(self, input: AuthInput) -> AuthOutput:

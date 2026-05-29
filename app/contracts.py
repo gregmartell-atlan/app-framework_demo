@@ -3,8 +3,10 @@
 All handler and task methods use these typed contracts (no bare Dict/Any at boundaries).
 """
 
-from typing import Literal, Optional
+from typing import ClassVar, Literal, Optional
 from pydantic import BaseModel, Field
+
+from application_sdk.app import Input, Output
 
 
 # ============================================================================
@@ -41,14 +43,14 @@ class HeartbeatDetails(BaseModel):
 # Auth handler contracts
 # ============================================================================
 
-class AuthInput(BaseModel):
+class AuthInput(Input, allow_unbounded_fields=True):
     """Input for the auth handler."""
 
     credential: dict = Field(..., description="GitHub credential (token)")
     extraction_method: str = Field(default="direct", description="Extraction routing mode")
 
 
-class AuthOutput(BaseModel):
+class AuthOutput(Output):
     """Output from the auth handler."""
 
     status: str = Field(..., description="Authentication status (success/failure)")
@@ -60,14 +62,14 @@ class AuthOutput(BaseModel):
 # Preflight handler contracts
 # ============================================================================
 
-class PreflightInput(BaseModel):
+class PreflightInput(Input, allow_unbounded_fields=True):
     """Input for the preflight handler."""
 
     organization: str = Field(..., description="GitHub organization or user account")
     credential: dict = Field(..., description="GitHub credential")
 
 
-class PreflightOutput(BaseModel):
+class PreflightOutput(Output, allow_unbounded_fields=True):
     """Output from the preflight handler."""
 
     status: str = Field(..., description="Preflight status (success/warning/failure)")
@@ -81,7 +83,7 @@ class PreflightOutput(BaseModel):
 # Metadata extraction contracts
 # ============================================================================
 
-class GitHubExtractionInput(BaseModel):
+class GitHubExtractionInput(Input, allow_unbounded_fields=True):
     """Input for the main metadata extraction task."""
 
     organization: str = Field(..., description="GitHub organization or user account")
@@ -133,7 +135,7 @@ class GitHubExtractionInput(BaseModel):
     )
 
 
-class GitHubExtractionOutput(BaseModel):
+class GitHubExtractionOutput(Output):
     """Output from the main metadata extraction task."""
 
     repos_file: Optional[FileReference] = Field(None, description="Repository data file")
@@ -164,7 +166,7 @@ class SbomProgress(HeartbeatDetails):
     poll_attempts: int = Field(default=0, description="Number of polling attempts so far")
 
 
-class FetchSbomInput(BaseModel):
+class FetchSbomInput(Input, allow_unbounded_fields=True):
     """Input for the fetch_sbom task."""
 
     repositories: list[str] = Field(..., description="List of repo full names to generate SBOMs for")
@@ -174,7 +176,7 @@ class FetchSbomInput(BaseModel):
     output_dir: str = Field(..., description="Directory to write SBOM files to")
 
 
-class FetchSbomOutput(BaseModel):
+class FetchSbomOutput(Output, allow_unbounded_fields=True):
     """Output from the fetch_sbom task."""
 
     sbom_files: list[FileReference] = Field(default_factory=list, description="Generated SBOM files")
@@ -202,7 +204,7 @@ class TransformSbomOutput(BaseModel):
 # Transform task contracts
 # ============================================================================
 
-class TransformInput(BaseModel):
+class TransformInput(Input):
     """Input for the transform task."""
 
     repos_file: Optional[FileReference] = Field(None, description="Repository data file")
@@ -239,7 +241,7 @@ class TransformInput(BaseModel):
     )
 
 
-class TransformOutput(BaseModel):
+class TransformOutput(Output):
     """Output from the transform task."""
 
     assets_created: int = Field(default=0, description="Total assets created")
@@ -287,7 +289,7 @@ class GlossarySyncResult(BaseModel):
     dry_run: bool = False
 
 
-class GlossarySyncInput(BaseModel):
+class GlossarySyncInput(Input, allow_unbounded_fields=True):
     """Atlan task input for the glossary-sync task (Option C)."""
 
     repo_full_name: str = Field(..., description="GitHub repo (org/name) whose wiki to sync")
@@ -298,7 +300,7 @@ class GlossarySyncInput(BaseModel):
     dry_run: bool = Field(default=False, description="Dry-run toggle")
 
 
-class GlossarySyncOutput(GlossarySyncResult):
+class GlossarySyncOutput(GlossarySyncResult, Output, allow_unbounded_fields=True):
     """Atlan task output: result + human summary."""
 
     summary: str = Field(..., description="Human-readable summary of the sync run")
