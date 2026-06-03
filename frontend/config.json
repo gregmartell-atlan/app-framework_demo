@@ -8,6 +8,7 @@
         "type": "string",
         "ui": {
           "widget": "credential",
+          "credentialType": "github_token",
           "label": "GitHub Credential",
           "help": "Personal Access Token with repo + read:wiki scopes",
           "grid": 12,
@@ -20,6 +21,7 @@
         "type": "string",
         "ui": {
           "widget": "credential",
+          "credentialType": "atlan_api_token",
           "label": "Atlan API Token",
           "help": "Found in your Atlan tenant → Settings → API Keys",
           "grid": 12,
