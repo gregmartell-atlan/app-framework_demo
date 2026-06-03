@@ -85,7 +85,9 @@ start-temporal.shell = "temporal server start-dev --ip 127.0.0.1 --port 7233 --u
 
 # Terminal 2: run the app under a Dapr sidecar that loads ./components/*.yaml.
 # dapr run sets DAPR_HTTP_PORT for the child process, satisfying the SDK.
-dev-dapr.shell = "dapr run --app-id github-connector --dapr-http-port 3500 --resources-path ./components -- uv run python -m app.run_dev"
+# We use Temporal (not Dapr actors), so the placement/scheduler retry spam is
+# filtered out to keep the real app logs readable.
+dev-dapr.shell = "dapr run --app-id github-connector --dapr-http-port 3500 --resources-path ./components -- uv run python -m app.run_dev 2>&1 | grep --line-buffered -vE 'placement|scheduler|watchhosts|api/v2/spans'"
 
 # Config-screen form preview only (no Temporal/Dapr, mocked backend).
 preview.shell = "python serve_playground.py"
