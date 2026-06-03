@@ -29,8 +29,11 @@ manifest = json.loads(MANIFEST_FILE.read_text())
 
 
 async def list_configmaps(request: Request) -> JSONResponse:
-    """GET /workflows/v1/configmaps — return full config map objects."""
-    return JSONResponse([config_map])
+    """GET /workflows/v1/configmaps — list of config map id strings.
+
+    The SPA calls .startsWith() on each item, so these MUST be strings.
+    """
+    return JSONResponse([config_map["id"]])
 
 
 async def get_manifest(request: Request) -> JSONResponse:
@@ -39,7 +42,7 @@ async def get_manifest(request: Request) -> JSONResponse:
 
 
 async def get_configmap(request: Request) -> JSONResponse:
-    """GET /workflows/v1/configmap/{id} — config map schema for the form."""
+    """GET /workflows/v1/configmap/{id} — full config map (id/name/logo/config)."""
     return JSONResponse(config_map)
 
 
