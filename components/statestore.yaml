@@ -1,0 +1,12 @@
+# Dapr state store — in-memory (local dev only, no Redis needed).
+# The SDK's DaprStateStore looks up the component named "statestore"
+# (STATE_STORE_NAME). In-memory state is fine for a single-process dev run;
+# it is NOT durable across restarts.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.in-memory
+  version: v1
+  metadata: []

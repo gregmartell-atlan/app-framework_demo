@@ -26,6 +26,8 @@ dev = [
     "ruff>=0.5",
     "pyright>=1.1.370",
     "poethepoet>=0.27",
+    "uvicorn>=0.30",          # serve_playground.py config-screen preview
+    "starlette>=0.37",        # serve_playground.py config-screen preview
 ]
 
 [build-system]
@@ -73,9 +75,20 @@ generate.shell = "cd contract && pkl eval -m ../app/generated app.pkl && mv ../a
 # Static checker bundled with application-sdk — exits 0 only on full v3 compliance.
 check-v3 = "python -m tools.migrate_v3.check_migration --no-color app/"
 
-# Local boot in combined mode (handler + worker in one process). Uses
-# MockSecretStore from application_sdk.testing.mocks — no Dapr needed.
+# Local boot in combined mode (handler + worker in one process). Requires a
+# Dapr sidecar + Temporal — prefer `dev-dapr` which wires both up for you.
 dev = "python -m app.run_dev"
+
+# --- Local Temporal + Dapr dev stack (see docs/local-temporal-dev.md) -------
+# Terminal 1: start the local Temporal dev server (UI on :8233).
+start-temporal.shell = "temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233"
+
+# Terminal 2: run the app under a Dapr sidecar that loads ./components/*.yaml.
+# dapr run sets DAPR_HTTP_PORT for the child process, satisfying the SDK.
+dev-dapr.shell = "dapr run --app-id github-connector --dapr-http-port 3500 --resources-path ./components -- uv run python -m app.run_dev"
+
+# Config-screen form preview only (no Temporal/Dapr, mocked backend).
+preview.shell = "python serve_playground.py"
 
 # Run tests.
 test       = "pytest -q"
