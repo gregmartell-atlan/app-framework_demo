@@ -6,7 +6,7 @@ Usage:
     uv run python -m app.run_dev
 """
 
-from application_sdk.dev import run_dev_combined
+from application_sdk.main import run_dev_combined
 
 from app.connector import GitHubConnector
 
