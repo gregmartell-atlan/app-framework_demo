@@ -11,82 +11,106 @@ from app.contracts import (
     AuthOutput,
     PreflightInput,
     PreflightOutput,
-    GitHubExtractionInput,
-    GitHubExtractionOutput,
+    GitHubMetadataInput,
+    GitHubMetadataOutput,
+    FetchReposInput,
+    FetchReposOutput,
     FetchSbomInput,
     FetchSbomOutput,
     SbomProgress,
+    TransformInput,
+    TransformOutput,
     FileReference,
     MaxItems,
 )
 
 
+# ---------------------------------------------------------------------------
+# Handler contracts (plain BaseModel — HTTP boundary)
+# ---------------------------------------------------------------------------
+
 def test_auth_input_valid():
-    """Test AuthInput with valid data."""
-    data = {
-        "credential": {"token": "ghp_test123"},
-        "extraction_method": "direct",
-    }
-    input_obj = AuthInput(**data)
-    assert input_obj.credential["token"] == "ghp_test123"
-    assert input_obj.extraction_method == "direct"
+    data = {"credential": {"token": "ghp_test123"}, "extraction_method": "direct"}
+    obj = AuthInput(**data)
+    assert obj.credential["token"] == "ghp_test123"
+    assert obj.extraction_method == "direct"
 
 
 def test_auth_output_success():
-    """Test AuthOutput for successful authentication."""
-    output = AuthOutput(
-        status="success",
-        message="Authenticated as octocat",
-        user_login="octocat",
-    )
-    assert output.status == "success"
-    assert output.user_login == "octocat"
+    out = AuthOutput(status="success", message="Authenticated as octocat", user_login="octocat")
+    assert out.status == "success"
+    assert out.user_login == "octocat"
 
 
 def test_preflight_output_with_rate_limit():
-    """Test PreflightOutput with rate limit info."""
-    output = PreflightOutput(
+    out = PreflightOutput(
         status="success",
         message="Preflight passed",
         scopes=["repo", "read:org"],
         rate_limit_remaining=4500,
         rate_limit_reset_at="2026-04-30T15:00:00Z",
     )
-    assert output.rate_limit_remaining == 4500
-    assert len(output.scopes) == 2
+    assert out.rate_limit_remaining == 4500
+    assert len(out.scopes) == 2
 
 
-def test_github_extraction_input_defaults():
-    """Test GitHubExtractionInput with default values."""
-    input_obj = GitHubExtractionInput(
+# ---------------------------------------------------------------------------
+# Workflow-level contracts (SDK Input/Output)
+# ---------------------------------------------------------------------------
+
+def test_github_metadata_input_defaults():
+    obj = GitHubMetadataInput(organization="atlanhq", github_token="ghp_x")
+    assert obj.extract_wiki is False
+    assert obj.extract_yaml is False
+    assert obj.extract_sbom is False
+    assert obj.max_items == 1000
+    assert obj.repositories == []
+
+
+def test_github_metadata_input_full():
+    obj = GitHubMetadataInput(
+        github_token="ghp_test",
         organization="atlanhq",
-        credential={"token": "ghp_test"},
-        connection_qualified_name="default/github/123",
+        repositories=["repo1", "repo2"],
+        extract_wiki=True,
+        extract_yaml=True,
+        extract_sbom=False,
+        max_items=500,
     )
-    assert input_obj.extract_wiki is False
-    assert input_obj.extract_yaml is False
-    assert input_obj.extract_sbom is False
-    assert input_obj.sbom_poll_interval_seconds == 15
-    assert input_obj.max_items.max_items == 1000
+    assert obj.organization == "atlanhq"
+    assert len(obj.repositories) == 2
+    assert obj.extract_wiki is True
 
 
-def test_github_extraction_output_with_files():
-    """Test GitHubExtractionOutput with file references."""
-    output = GitHubExtractionOutput(
-        repos_file=FileReference(path="/tmp/repos.jsonl", retention="RETAINED", size_bytes=1024),
-        wiki_file=None,
-        yaml_file=None,
-        sbom_file=None,
-        extraction_summary="Extracted 10 repos",
+def test_github_metadata_output_defaults():
+    out = GitHubMetadataOutput()
+    assert out.repos_count == 0
+    assert out.status == "succeeded"
+
+
+# ---------------------------------------------------------------------------
+# Task-level contracts
+# ---------------------------------------------------------------------------
+
+def test_fetch_repos_input_defaults():
+    obj = FetchReposInput(organization="atlanhq", github_token="ghp_test")
+    assert obj.extract_wiki is False
+    assert obj.max_items == 1000
+    assert obj.repositories == []
+
+
+def test_fetch_repos_output():
+    out = FetchReposOutput(
         repos_count=10,
+        repos_file_path="/tmp/repos.jsonl",
+        extraction_summary="Extracted 10 repos",
     )
-    assert output.repos_file.path == "/tmp/repos.jsonl"
-    assert output.repos_count == 10
-    assert output.wiki_pages_count == 0
+    assert out.repos_count == 10
+    assert out.repos_file_path == "/tmp/repos.jsonl"
+    assert out.wiki_pages_count == 0
 
 
 def test_sbom_progress_heartbeat():
-    """Test SbomProgress typed heartbeat details."""
     progress = SbomProgress(
         repo_full_name="atlanhq/atlan-python",
         report_id="report_123",
@@ -98,28 +122,31 @@ def test_sbom_progress_heartbeat():
 
 
 def test_fetch_sbom_output():
-    """Test FetchSbomOutput with success and failure lists."""
-    output = FetchSbomOutput(
-        sbom_files=[
-            FileReference(path="/tmp/repo1_sbom.json", retention="RETAINED", size_bytes=2048),
-            FileReference(path="/tmp/repo2_sbom.json", retention="RETAINED", size_bytes=3072),
-        ],
+    out = FetchSbomOutput(
+        sbom_file_paths=["/tmp/repo1_sbom.json", "/tmp/repo2_sbom.json"],
         successful_repos=["atlanhq/repo1", "atlanhq/repo2"],
         failed_repos=["atlanhq/repo3"],
         summary="2 succeeded, 1 failed",
     )
-    assert len(output.sbom_files) == 2
-    assert len(output.successful_repos) == 2
-    assert len(output.failed_repos) == 1
+    assert len(out.sbom_file_paths) == 2
+    assert len(out.failed_repos) == 1
 
+
+def test_transform_output_defaults():
+    out = TransformOutput()
+    assert out.assets_created == 0
+    assert out.repos_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Backward-compat aliases
+# ---------------------------------------------------------------------------
 
 def test_file_reference_required_fields():
-    """Test FileReference requires path."""
     with pytest.raises(ValidationError):
         FileReference(retention="RETAINED")  # Missing path
 
 
 def test_max_items_default():
-    """Test MaxItems default value."""
-    max_items = MaxItems()
-    assert max_items.max_items == 1000
+    obj = MaxItems()
+    assert obj.max_items == 1000
