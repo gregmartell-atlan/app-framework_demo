@@ -76,17 +76,29 @@ generate.shell = "cd contract && pkl eval -m ../app/generated app.pkl && mv ../a
 check-v3 = "python -m tools.migrate_v3.check_migration --no-color app/"
 
 # Local boot in combined mode (handler + worker in one process). Requires a
-# Dapr sidecar + Temporal — prefer `dev-dapr` which wires both up for you.
+# Dapr sidecar + Temporal — prefer `stack` (below) which wires up everything.
 dev = "python -m app.run_dev"
 
-# --- Local Temporal + Dapr dev stack (see docs/local-temporal-dev.md) -------
-# Terminal 1: start the local Temporal dev server (UI on :8233).
-start-temporal.shell = "temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233"
+# --- ONE-COMMAND local run (recommended) ------------------------------------
+# Backgrounds the Temporal dev server (logs -> /tmp/temporal-dev.log), waits
+# for :7233 to accept connections, then runs the app under a Dapr sidecar in
+# the foreground. Ctrl+C stops the app + Dapr; stop Temporal with `poe stop-temporal`.
+# Run this in ONE terminal:  uv run poe stack
+stack.shell = """
+if ! nc -z 127.0.0.1 7233 2>/dev/null; then
+  echo '[stack] starting Temporal dev server in background (logs: /tmp/temporal-dev.log)';
+  nohup temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233 > /tmp/temporal-dev.log 2>&1 &
+  for i in $(seq 1 30); do nc -z 127.0.0.1 7233 2>/dev/null && break; sleep 1; done;
+fi;
+nc -z 127.0.0.1 7233 2>/dev/null && echo '[stack] Temporal is up on :7233 (UI: http://localhost:8233)' || { echo '[stack] ERROR: Temporal did not come up — see /tmp/temporal-dev.log'; exit 1; };
+dapr run --app-id github-connector --dapr-http-port 3500 --resources-path ./components -- uv run python -m app.run_dev 2>&1 | grep --line-buffered -vE 'placement|scheduler|watchhosts|api/v2/spans'
+"""
 
-# Terminal 2: run the app under a Dapr sidecar that loads ./components/*.yaml.
-# dapr run sets DAPR_HTTP_PORT for the child process, satisfying the SDK.
-# We use Temporal (not Dapr actors), so the placement/scheduler retry spam is
-# filtered out to keep the real app logs readable.
+# Stop the background Temporal dev server started by `stack`.
+stop-temporal.shell = "pkill -f 'temporal server start-dev' && echo 'Temporal stopped' || echo 'No Temporal dev server running'"
+
+# --- Individual pieces (if you prefer two terminals) ------------------------
+start-temporal.shell = "temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233"
 dev-dapr.shell = "dapr run --app-id github-connector --dapr-http-port 3500 --resources-path ./components -- uv run python -m app.run_dev 2>&1 | grep --line-buffered -vE 'placement|scheduler|watchhosts|api/v2/spans'"
 
 # Config-screen form preview only (no Temporal/Dapr, mocked backend).
