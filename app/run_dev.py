@@ -6,10 +6,12 @@ Usage:
     uv run python -m app.run_dev
 """
 
+import asyncio
+
 from application_sdk.main import run_dev_combined
 
 from app.connector import GitHubConnector
 
 
 if __name__ == "__main__":
-    run_dev_combined(GitHubConnector)
+    asyncio.run(run_dev_combined(GitHubConnector))
