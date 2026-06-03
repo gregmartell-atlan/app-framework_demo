@@ -29,8 +29,8 @@ manifest = json.loads(MANIFEST_FILE.read_text())
 
 
 async def list_configmaps(request: Request) -> JSONResponse:
-    """GET /workflows/v1/configmaps — list available config maps."""
-    return JSONResponse([{"id": config_map["id"], "name": config_map["name"]}])
+    """GET /workflows/v1/configmaps — return full config map objects."""
+    return JSONResponse([config_map])
 
 
 async def get_manifest(request: Request) -> JSONResponse:

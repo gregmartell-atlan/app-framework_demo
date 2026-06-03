@@ -1,5 +1,5 @@
 {
-  "id": "sync_glossary",
+  "id": "workflow",
   "name": "Sync Wiki to Atlan Glossary",
   "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
   "config": {
