@@ -9,16 +9,20 @@ Usage:
 Then open http://localhost:8000
 
 Response contract (reverse-engineered from the playground SPA bundle):
-  GET /workflows/v1/configmaps        -> {"data": ["<id>", ...]}   (id strings)
-  GET /workflows/v1/configmap/{id}    -> {"data": {id,name,logo,config}}
-  GET /workflows/v1/manifest          -> {...manifest...}          (read raw)
+  GET  /workflows/v1/configmaps       -> {"data": ["<id>", ...]}   (id strings)
+  GET  /workflows/v1/configmap/{id}   -> {"data": {id,name,logo,config}}
+  GET  /workflows/v1/manifest         -> {...manifest...}          (read raw)
+  POST /workflows/v1/auth             -> {"success": true, ...}    (credential test)
+  POST /workflows/v1/dev/local-vault  -> {"credential_guid": ...}  (mock vault)
+  POST /workflows/v1/start            -> {"workflow_id": ...}      (mock start)
 
-The credential widget fetches /workflows/v1/configmap/{credentialType} for
-its own field sub-form, so we serve those configmaps too (loaded from
-frontend/credentials/*.json).
+The POST endpoints are mocks for preview only — they never touch GitHub or
+Atlan. This server is for visually previewing the config form, not running
+the actual sync (that needs the real Atlan App Framework runtime).
 """
 
 import json
+import uuid
 from pathlib import Path
 
 import uvicorn
@@ -47,11 +51,7 @@ if CRED_DIR.exists():
 
 
 async def list_configmaps(request: Request) -> JSONResponse:
-    """GET /workflows/v1/configmaps — {data: [id strings]}.
-
-    Only the top-level workflow id is listed; credential sub-forms are
-    fetched on demand by the credential widgets, not listed here.
-    """
+    """GET /workflows/v1/configmaps — {data: [id strings]}."""
     return JSONResponse({"data": [main_config["id"]]})
 
 
@@ -67,10 +67,32 @@ async def get_configmap(request: Request) -> JSONResponse:
     return JSONResponse({"data": cfg})
 
 
+async def test_auth(request: Request) -> JSONResponse:
+    """POST /workflows/v1/auth — mock credential test (always succeeds)."""
+    return JSONResponse({"success": True, "message": "Authentication successful (preview mock)"})
+
+
+async def local_vault(request: Request) -> JSONResponse:
+    """POST /workflows/v1/dev/local-vault — mock credential vaulting."""
+    return JSONResponse({"credential_guid": f"preview-{uuid.uuid4()}"})
+
+
+async def start_workflow(request: Request) -> JSONResponse:
+    """POST /workflows/v1/start — mock workflow start (no real execution)."""
+    return JSONResponse({
+        "workflow_id": f"preview-{uuid.uuid4()}",
+        "run_id": f"preview-{uuid.uuid4()}",
+        "message": "Preview mock — no workflow was actually started",
+    })
+
+
 routes = [
     Route("/workflows/v1/configmaps", list_configmaps),
     Route("/workflows/v1/manifest", get_manifest),
     Route("/workflows/v1/configmap/{config_id}", get_configmap),
+    Route("/workflows/v1/auth", test_auth, methods=["POST"]),
+    Route("/workflows/v1/dev/local-vault", local_vault, methods=["POST"]),
+    Route("/workflows/v1/start", start_workflow, methods=["POST"]),
     Mount("/", app=StaticFiles(directory=str(STATIC_DIR), html=True)),
 ]
 
