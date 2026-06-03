@@ -1,0 +1,17 @@
+# Single source of truth for the `atlan` CLI (atlan app deploy / publish / marketplace).
+# See the app-marketplace plugin docs for the full field reference.
+name: github
+app_id: "REPLACE_WITH_GLOBAL_MARKETPLACE_UUID"   # provisioned when the app is registered in GM
+display_name: "GitHub"
+type: connector
+execution_mode: argo
+self_deployed_runtime: true
+deploy:
+  replicaCount: 1
+  containerPort: 8000
+  env:
+    ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "1800"
+  dapr:
+    objectstore: true    # connector writes repos/wiki/yaml/sbom JSONL to object store
+    secretstore: true    # GitHub PAT / Atlan credential resolved from secret store
+    statestore: false    # in-memory locally (components/statestore.yaml); not required when deployed
