@@ -1,295 +1,183 @@
 """Pydantic contracts for GitHub connector inputs and outputs.
 
-All handler and task methods use these typed contracts (no bare Dict/Any at boundaries).
+All @entrypoint and @task methods use these typed contracts.
+Handler-level contracts (AuthInput etc.) remain plain BaseModel since they
+are HTTP boundary types, not Temporal payloads.
 """
 
-from typing import ClassVar, Literal, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from application_sdk.app import Input, Output
+from application_sdk.contracts.base import HeartbeatDetails
 
 
 # ============================================================================
-# Reusable helper types
+# Handler-level contracts (HTTP boundary — plain BaseModel)
 # ============================================================================
 
-class MaxItems(BaseModel):
-    """Pagination/limit control."""
+class AuthInput(BaseModel):
+    """Input for the auth handler (HTTP boundary, not Temporal)."""
 
-    max_items: int = Field(default=1000, description="Maximum items to fetch")
-
-
-class FileReference(BaseModel):
-    """Reference to a file stored in the app's file system or object storage.
-
-    Files marked as RETAINED are preserved across task retries.
-    """
-
-    path: str = Field(..., description="File path relative to task working directory")
-    retention: str = Field(default="RETAINED", description="File retention policy")
-    size_bytes: Optional[int] = Field(None, description="File size in bytes")
+    credential: dict = Field(default_factory=dict, description="GitHub credential")
+    extraction_method: str = Field(default="direct")
 
 
-class HeartbeatDetails(BaseModel):
-    """Base class for typed heartbeat payloads.
-
-    Tasks can subclass this to store custom resume state.
-    """
-
-    pass
-
-
-# ============================================================================
-# Auth handler contracts
-# ============================================================================
-
-class AuthInput(Input, allow_unbounded_fields=True):
-    """Input for the auth handler."""
-
-    credential: dict = Field(..., description="GitHub credential (token)")
-    extraction_method: str = Field(default="direct", description="Extraction routing mode")
-
-
-class AuthOutput(Output):
+class AuthOutput(BaseModel):
     """Output from the auth handler."""
 
-    status: str = Field(..., description="Authentication status (success/failure)")
-    message: str = Field(..., description="Human-readable status message")
-    user_login: Optional[str] = Field(None, description="Authenticated GitHub user login")
+    status: str
+    message: str
+    user_login: Optional[str] = None
 
 
-# ============================================================================
-# Preflight handler contracts
-# ============================================================================
+class PreflightInput(BaseModel):
+    """Input for the preflight handler (HTTP boundary, not Temporal)."""
 
-class PreflightInput(Input, allow_unbounded_fields=True):
-    """Input for the preflight handler."""
-
-    organization: str = Field(..., description="GitHub organization or user account")
-    credential: dict = Field(..., description="GitHub credential")
+    organization: str = Field(default="", description="GitHub org or user")
+    credential: dict = Field(default_factory=dict, description="GitHub credential")
 
 
-class PreflightOutput(Output, allow_unbounded_fields=True):
+class PreflightOutput(BaseModel):
     """Output from the preflight handler."""
 
-    status: str = Field(..., description="Preflight status (success/warning/failure)")
-    message: str = Field(..., description="Human-readable status message")
-    scopes: list[str] = Field(default_factory=list, description="Detected token scopes")
-    rate_limit_remaining: Optional[int] = Field(None, description="GitHub API rate limit remaining")
-    rate_limit_reset_at: Optional[str] = Field(None, description="Rate limit reset time (ISO 8601)")
+    status: str
+    message: str
+    scopes: list[str] = Field(default_factory=list)
+    rate_limit_remaining: Optional[int] = None
+    rate_limit_reset_at: Optional[str] = None
 
 
 # ============================================================================
-# Metadata extraction contracts
+# Top-level workflow contracts (Temporal — must extend Input / Output)
 # ============================================================================
 
-class GitHubExtractionInput(Input, allow_unbounded_fields=True):
-    """Input for the main metadata extraction task."""
+class GitHubMetadataInput(Input, allow_unbounded_fields=True):
+    """Form input for the fetch_metadata @entrypoint workflow.
 
-    organization: str = Field(..., description="GitHub organization or user account")
-    repositories: Optional[list[str]] = Field(None, description="Specific repos (None = all)")
+    Field names match github.json form properties exactly so the SPA can
+    post them directly as the workflow payload.
+    """
+
+    github_token: str = Field(default="", description="GitHub Personal Access Token")
+    organization: str = Field(default="", description="GitHub org or user account")
+    repositories: list[str] = Field(default_factory=list, description="Specific repos (empty = all)")
     extract_wiki: bool = Field(default=False, description="Extract wiki pages")
     extract_yaml: bool = Field(default=False, description="Extract YAML files")
     extract_sbom: bool = Field(default=False, description="Extract SBOM dependencies")
     sbom_poll_interval_seconds: int = Field(default=15, description="SBOM polling interval")
-    credential: dict = Field(..., description="GitHub credential")
-    connection_qualified_name: str = Field(
-        ...,
-        description=(
-            "Atlan connection QN. v1 uses the 'app' connector "
-            "(default/app/{ts}); v2 uses the 'github' connector "
-            "(default/github/{ts}). Must match the typedef_version used."
-        ),
-    )
-    typedef_version: Literal["v1", "v2"] = Field(
-        default="v1",
-        description=(
-            "Which typedef set to emit. 'v1' uses pyatlan_v9 built-in types "
-            "(Application / ApplicationField / Readme / Process) — works on "
-            "any tenant today. 'v2' uses the GitHubV01 custom typedefs "
-            "(Repository / WikiPage / YAMLFile / SbomPackage / SbomDependency) "
-            "and requires the atlanhq/models PR to be seeded on the target "
-            "tenant first. See typedef reference §4 Phase F."
-        ),
-    )
-    max_items: MaxItems = Field(default_factory=MaxItems, description="Pagination limits")
-    wiki_content_mode: Literal["index", "full", "parse"] = Field(
-        default="index",
-        description=(
-            "How wiki page content is stored in Atlan. "
-            "'index' truncates to 500 chars (default, low storage); "
-            "'full' stores the complete markdown content; "
-            "'parse' extracts structured fields (owner, domain, tags) from "
-            "YAML frontmatter or ## Header patterns and maps them to Atlan attributes."
-        ),
-    )
-    yaml_content_mode: Literal["index", "full", "parse"] = Field(
-        default="index",
-        description=(
-            "How YAML file content is stored in Atlan. "
-            "'index' stores only the file path reference (default); "
-            "'full' stores the complete raw YAML content; "
-            "'parse' extracts catalog metadata keys (owner, domain, description, tags) "
-            "and maps them to Atlan attributes — useful for catalog.yaml / schema.yaml patterns."
-        ),
-    )
+    max_items: int = Field(default=1000, description="Max repositories to fetch")
 
 
-class GitHubExtractionOutput(Output):
-    """Output from the main metadata extraction task."""
+class GitHubMetadataOutput(Output):
+    """Workflow output from fetch_metadata."""
 
-    repos_file: Optional[FileReference] = Field(None, description="Repository data file")
-    wiki_file: Optional[FileReference] = Field(None, description="Wiki pages data file")
-    yaml_file: Optional[FileReference] = Field(None, description="YAML files data file")
-    sbom_file: Optional[FileReference] = Field(None, description="SBOM dependencies data file")
-    extraction_summary: str = Field(..., description="Summary of extraction results")
-    repos_count: int = Field(default=0, description="Number of repositories extracted")
-    wiki_pages_count: int = Field(default=0, description="Number of wiki pages extracted")
-    yaml_files_count: int = Field(default=0, description="Number of YAML files extracted")
-    sbom_dependencies_count: int = Field(default=0, description="Number of SBOM dependencies extracted")
+    repos_count: int = 0
+    wiki_pages_count: int = 0
+    yaml_files_count: int = 0
+    sbom_dependencies_count: int = 0
+    extraction_summary: str = ""
+    status: str = "succeeded"
 
 
 # ============================================================================
-# SBOM-specific contracts (Phase 2)
+# Task-level contracts (Temporal activities — must extend Input / Output)
 # ============================================================================
 
-class SbomProgress(HeartbeatDetails):
-    """Typed heartbeat for SBOM fetch task (supports resume after timeout).
+class FetchReposInput(Input, allow_unbounded_fields=True):
+    """Input for the fetch_repos @task."""
 
-    Stores current progress so the task can resume from where it left off
-    if it times out or is retried.
-    """
+    github_token: str = Field(default="", description="GitHub PAT")
+    organization: str = Field(default="", description="GitHub org or user account")
+    repositories: list[str] = Field(default_factory=list, description="Filter list (empty = all)")
+    extract_wiki: bool = False
+    extract_yaml: bool = False
+    max_items: int = 1000
+    output_dir: str = Field(default="", description="Output directory path")
 
-    repo_full_name: str = Field(..., description="Current repository being processed")
-    report_id: Optional[str] = Field(None, description="GitHub SBOM report ID (if generation started)")
-    started_at_iso: str = Field(..., description="When SBOM generation started (ISO 8601)")
-    poll_attempts: int = Field(default=0, description="Number of polling attempts so far")
+
+class FetchReposOutput(Output):
+    """Output from the fetch_repos @task."""
+
+    repos_count: int = 0
+    wiki_pages_count: int = 0
+    yaml_files_count: int = 0
+    repos_file_path: str = ""
+    wiki_file_path: str = ""
+    yaml_file_path: str = ""
+    extraction_summary: str = ""
 
 
 class FetchSbomInput(Input, allow_unbounded_fields=True):
-    """Input for the fetch_sbom task."""
+    """Input for the fetch_sbom @task."""
 
-    repositories: list[str] = Field(..., description="List of repo full names to generate SBOMs for")
-    organization: str = Field(..., description="GitHub organization or user account")
-    credential: dict = Field(..., description="GitHub credential")
-    poll_interval_seconds: int = Field(default=15, description="How often to poll SBOM status")
-    output_dir: str = Field(..., description="Directory to write SBOM files to")
+    repositories: list[str] = Field(default_factory=list, description="Repo full names")
+    organization: str = Field(default="", description="GitHub org")
+    github_token: str = Field(default="", description="GitHub PAT")
+    poll_interval_seconds: int = Field(default=15)
+    output_dir: str = Field(default="", description="Output directory path")
 
 
 class FetchSbomOutput(Output, allow_unbounded_fields=True):
-    """Output from the fetch_sbom task."""
+    """Output from the fetch_sbom @task."""
 
-    sbom_files: list[FileReference] = Field(default_factory=list, description="Generated SBOM files")
-    successful_repos: list[str] = Field(default_factory=list, description="Repos with successful SBOM generation")
-    failed_repos: list[str] = Field(default_factory=list, description="Repos that failed SBOM generation")
-    summary: str = Field(..., description="Summary of SBOM generation results")
+    sbom_file_paths: list[str] = Field(default_factory=list)
+    successful_repos: list[str] = Field(default_factory=list)
+    failed_repos: list[str] = Field(default_factory=list)
+    summary: str = ""
 
 
-# ============================================================================
-# Transform task contracts
-# ============================================================================
+class SbomProgress(HeartbeatDetails):
+    """Typed heartbeat for the fetch_sbom task — enables resume after timeout."""
+
+    repo_full_name: str
+    report_id: Optional[str] = None
+    started_at_iso: str
+    poll_attempts: int = 0
+
 
 class TransformInput(Input, allow_unbounded_fields=True):
-    """Input for the transform task."""
+    """Input for the transform @task."""
 
-    repos_file: Optional[FileReference] = Field(None, description="Repository data file")
-    wiki_file: Optional[FileReference] = Field(None, description="Wiki pages data file")
-    yaml_file: Optional[FileReference] = Field(None, description="YAML files data file")
-    sbom_file: Optional[FileReference] = Field(None, description="SBOM dependencies data file")
-    connection_qualified_name: str = Field(..., description="Atlan connection QN")
-    typedef_version: Literal["v1", "v2"] = Field(
-        default="v1",
-        description="Typedef set to emit. Must match extraction-side typedef_version.",
-    )
-    wiki_content_mode: Literal["index", "full", "parse"] = Field(
-        default="index",
-        description="Wiki content mode — must match the value used during extraction.",
-    )
-    yaml_content_mode: Literal["index", "full", "parse"] = Field(
-        default="index",
-        description="YAML content mode — must match the value used during extraction.",
-    )
-    output_target: Literal["application_field", "glossary"] = Field(
-        default="application_field",
-        description=(
-            "'application_field' emits wiki/YAML pages as ApplicationField assets (original behaviour). "
-            "'glossary' emits wiki pages as AtlasGlossaryTerms organised under an AtlasGlossary, "
-            "with wiki nav sections as AtlasGlossaryCategory nodes."
-        ),
-    )
-    glossary_name: Optional[str] = Field(
-        default=None,
-        description=(
-            "Name for the target AtlasGlossary when output_target='glossary'. "
-            "Defaults to the GitHub org extracted from the first repo's full_name."
-        ),
-    )
-    atlan_credential: dict = Field(
-        default_factory=dict,
-        description="Atlan credential dict with base_url + api_key. If empty, Atlan saves are skipped.",
-    )
+    repos_file_path: str = ""
+    wiki_file_path: str = ""
+    yaml_file_path: str = ""
+    sbom_file_path: str = ""
+    connection_qualified_name: str = ""
+    atlan_base_url: str = ""
+    atlan_api_key: str = ""
 
 
 class TransformOutput(Output):
-    """Output from the transform task."""
+    """Output from the transform @task."""
 
-    assets_created: int = Field(default=0, description="Total assets created")
-    assets_updated: int = Field(default=0, description="Total assets updated")
-    repos_count: int = Field(default=0, description="Repository assets")
-    wiki_pages_count: int = Field(default=0, description="Wiki page assets")
-    yaml_files_count: int = Field(default=0, description="YAML file assets")
-    sbom_dependencies_count: int = Field(default=0, description="SBOM dependency assets")
-    sbom_relationships_count: int = Field(default=0, description="SBOM relationship assets")
+    assets_created: int = 0
+    assets_updated: int = 0
+    repos_count: int = 0
+    wiki_pages_count: int = 0
+    yaml_files_count: int = 0
+    sbom_dependencies_count: int = 0
+    sbom_relationships_count: int = 0
 
 
 # ============================================================================
-# Glossary sync contracts (Option B / Option C)
+# Backward-compat aliases — keep legacy tests passing
 # ============================================================================
 
-class GlossarySyncConfig(BaseModel):
-    """Input config for the shared wiki → glossary sync routine."""
+class FileReference(BaseModel):
+    """Local file reference (used in unit tests and legacy code)."""
 
-    repo_full_name: str = Field(..., description="GitHub repo (org/name) whose wiki to sync")
-    github_token: str = Field(..., description="GitHub token used to clone the wiki")
-    glossary_name: str = Field(default="ghost_tsushima", description="Target Atlan glossary name")
-    phase1_filter: bool = Field(
-        default=True,
-        description="If True, only push Client + Shared Schemas pages (Phase 1 scope)",
-    )
-    dry_run: bool = Field(
-        default=False,
-        description="If True, log what would be saved but never call client.asset.save()",
-    )
+    path: str
+    retention: str = "RETAINED"
+    size_bytes: Optional[int] = None
 
 
-class GlossarySyncResult(BaseModel):
-    """Outcome of a wiki → glossary sync."""
+class MaxItems(BaseModel):
+    """Pagination/limit control (legacy helper)."""
 
-    glossary_qn: Optional[str] = None
-    glossary_guid: Optional[str] = None
-    pages_scanned: int = 0
-    pages_filtered_out: int = 0
-    categories_created: int = 0
-    terms_created: int = 0
-    terms_updated: int = 0
-    readmes_saved: int = 0
-    relationships_linked: int = 0
-    errors: list[str] = Field(default_factory=list)
-    dry_run: bool = False
+    max_items: int = 1000
 
 
-class GlossarySyncInput(Input, allow_unbounded_fields=True):
-    """Atlan task input for the glossary-sync task (Option C)."""
-
-    repo_full_name: str = Field(..., description="GitHub repo (org/name) whose wiki to sync")
-    github_credential: dict = Field(..., description="GitHub credential dict (must contain token)")
-    atlan_credential: dict = Field(..., description="Atlan credential dict (base_url + api_key)")
-    glossary_name: str = Field(default="ghost_tsushima", description="Target Atlan glossary name")
-    phase1_filter: bool = Field(default=True, description="Phase 1 filter toggle")
-    dry_run: bool = Field(default=False, description="Dry-run toggle")
-
-
-class GlossarySyncOutput(GlossarySyncResult, Output, allow_unbounded_fields=True):
-    """Atlan task output: result + human summary."""
-
-    summary: str = Field(..., description="Human-readable summary of the sync run")
+# Aliases for legacy test imports
+GitHubExtractionInput = FetchReposInput
+GitHubExtractionOutput = FetchReposOutput
