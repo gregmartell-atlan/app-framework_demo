@@ -1,6 +1,6 @@
 {
   "id": "github",
-  "name": "Sync Wiki to Atlan Glossary",
+  "name": "GitHub Metadata Extraction",
   "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
   "config": {
     "properties": {
@@ -9,80 +9,82 @@
         "ui": {
           "widget": "password",
           "label": "GitHub Personal Access Token",
-          "help": "PAT with repo + read:wiki scopes",
+          "help": "PAT with repo + read:org scopes",
           "grid": 12,
           "rules": [
-            { "required": true, "message": "A GitHub token is required to clone the wiki" }
+            { "required": true, "message": "A GitHub token is required" }
           ]
         }
       },
-      "atlan_base_url": {
-        "type": "string",
-        "default": "https://dsm.atlan.com",
-        "ui": {
-          "widget": "input",
-          "label": "Atlan Base URL",
-          "placeholder": "https://dsm.atlan.com",
-          "grid": 12,
-          "rules": [
-            { "required": true, "message": "Atlan base URL is required" }
-          ]
-        }
-      },
-      "atlan_api_key": {
-        "type": "string",
-        "ui": {
-          "widget": "password",
-          "label": "Atlan API Key",
-          "help": "Atlan tenant → Settings → API Keys",
-          "grid": 12,
-          "rules": [
-            { "required": true, "message": "An Atlan API key is required to write glossary terms" }
-          ]
-        }
-      },
-      "repo_full_name": {
+      "organization": {
         "type": "string",
         "ui": {
           "widget": "input",
-          "label": "GitHub Repository",
-          "help": "The repository whose wiki you want to sync (owner/repo)",
+          "label": "GitHub Organization or User",
+          "help": "The org or user account whose repositories you want to extract",
+          "placeholder": "e.g., sony-telemetry",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "An organization or user is required" }
+          ]
+        }
+      },
+      "repositories": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": [],
+        "ui": {
+          "widget": "tags",
+          "label": "Specific Repositories (optional)",
+          "help": "Limit extraction to these repos (owner/repo). Leave empty to extract all.",
           "placeholder": "e.g., sony-telemetry/schema-registry",
-          "grid": 12,
-          "rules": [
-            { "required": true, "message": "Repository is required" }
-          ]
-        }
-      },
-      "glossary_name": {
-        "type": "string",
-        "default": "sony_telemetry",
-        "ui": {
-          "widget": "input",
-          "label": "Atlan Glossary Name",
-          "help": "Target glossary — created on first run if it doesn’t exist",
-          "placeholder": "e.g., sony_telemetry",
-          "grid": 12,
-          "rules": [
-            { "required": true, "message": "Glossary name is required" }
-          ]
-        }
-      },
-      "phase1_filter": {
-        "type": "boolean",
-        "default": true,
-        "ui": {
-          "label": "Phase 1 filter — Client + Shared Schemas only",
-          "help": "When enabled, only Client and Shared Schemas pages are pushed. Disable to include Native + Tooling.",
           "grid": 12
         }
       },
-      "dry_run": {
+      "max_items": {
+        "type": "integer",
+        "default": 1000,
+        "ui": {
+          "widget": "number",
+          "label": "Max repositories",
+          "help": "Maximum number of repositories to fetch",
+          "grid": 12
+        }
+      },
+      "extract_wiki": {
         "type": "boolean",
         "default": false,
         "ui": {
-          "label": "Dry run (preview — no writes to Atlan)",
-          "help": "Logs what would be synced without creating or updating any glossary terms",
+          "label": "Extract wiki pages",
+          "help": "Clone and extract each repository's wiki",
+          "grid": 12
+        }
+      },
+      "extract_yaml": {
+        "type": "boolean",
+        "default": false,
+        "ui": {
+          "label": "Extract YAML files",
+          "help": "Extract YAML configuration files from repositories",
+          "grid": 12
+        }
+      },
+      "extract_sbom": {
+        "type": "boolean",
+        "default": false,
+        "ui": {
+          "label": "Extract SBOM (dependencies)",
+          "help": "Generate and extract a Software Bill of Materials per repository",
+          "grid": 12
+        }
+      },
+      "sbom_poll_interval_seconds": {
+        "type": "integer",
+        "default": 15,
+        "ui": {
+          "widget": "number",
+          "label": "SBOM poll interval (seconds)",
+          "help": "How often to poll GitHub for SBOM report readiness",
           "grid": 12
         }
       }
@@ -91,17 +93,17 @@
       {
         "id": "credentials",
         "label": "Credentials",
-        "properties": ["github_token", "atlan_base_url", "atlan_api_key"]
+        "properties": ["github_token"]
       },
       {
         "id": "connection",
-        "label": "Repository & Glossary",
-        "properties": ["repo_full_name", "glossary_name"]
+        "label": "Source",
+        "properties": ["organization", "repositories", "max_items"]
       },
       {
         "id": "options",
-        "label": "Sync Options",
-        "properties": ["phase1_filter", "dry_run"]
+        "label": "Extraction Options",
+        "properties": ["extract_wiki", "extract_yaml", "extract_sbom", "sbom_poll_interval_seconds"]
       }
     ]
   }

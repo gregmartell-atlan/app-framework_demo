@@ -1,7 +1,7 @@
 {
   "name": "github",
   "label": "GitHub",
-  "description": "Sync a GitHub wiki to an Atlan glossary (plus repo/YAML/SBOM extraction activities)",
+  "description": "Extract GitHub repositories, wikis, YAML files, and SBOM dependencies into Atlan",
   "category": "git",
   "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
   "connectorType": "source",
@@ -9,18 +9,17 @@
   "previewStatus": false,
   "version": "1.0.0",
   "workflows": {
-    "sync_glossary": {
-      "name": "github:sync-glossary",
-      "label": "Sync Wiki to Atlan Glossary",
-      "description": "Clone the GitHub wiki and upsert pages as Atlan Glossary Terms",
+    "fetch_metadata": {
+      "name": "github:fetch-metadata",
+      "label": "Extract GitHub Metadata",
+      "description": "Fetch repositories (and optionally wikis, YAML, and SBOMs) and load them into Atlan",
       "entrypoint": true
     }
   },
   "activities": {
-    "sync_glossary": { "name": "github:sync_glossary", "label": "Sync glossary (activity)", "timeout": 1800, "retry": { "maxAttempts": 2, "backoff": "exponential" } },
     "fetch_repos": { "name": "github:fetch_repos", "label": "Fetch repositories", "timeout": 3600, "retry": { "maxAttempts": 3, "backoff": "exponential" } },
-    "transform": { "name": "github:transform", "label": "Transform to Atlan assets", "timeout": 1800, "retry": { "maxAttempts": 3, "backoff": "exponential" } },
-    "fetch_sbom": { "name": "github:fetch_sbom", "label": "Fetch SBOMs", "timeout": 3600, "retry": { "maxAttempts": 3, "backoff": "exponential" } }
+    "fetch_sbom": { "name": "github:fetch_sbom", "label": "Fetch SBOMs", "timeout": 3600, "retry": { "maxAttempts": 3, "backoff": "exponential" } },
+    "transform": { "name": "github:transform", "label": "Transform to Atlan assets", "timeout": 1800, "retry": { "maxAttempts": 3, "backoff": "exponential" } }
   },
   "handler": {
     "class": "GitHubConnectorHandler",
