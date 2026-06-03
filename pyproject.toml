@@ -12,7 +12,9 @@ dependencies = [
     "atlan-application-sdk==3.4.0",
     "httpx>=0.27,<0.29",
     "pydantic>=2.7,<3",
-    "pyatlan-v9>=2.0,<3",
+    "pyatlan>=9.6,<10",
+    # Git operations for wiki cloning (v3 compliance rule 11)
+    "GitPython>=3.1,<4",
 ]
 
 [dependency-groups]
@@ -24,6 +26,8 @@ dev = [
     "ruff>=0.5",
     "pyright>=1.1.370",
     "poethepoet>=0.27",
+    "uvicorn>=0.30",          # serve_playground.py config-screen preview
+    "starlette>=0.37",        # serve_playground.py config-screen preview
 ]
 
 [build-system]
@@ -66,14 +70,39 @@ markers = [
 [tool.poe.tasks]
 # Generate workflow / credential / manifest / _input.py from contract/app.pkl.
 # Run on every contract change; CI fails on `git diff` after `poe generate`.
-generate.shell = "cd contract && pkl eval -m generated app.pkl && mkdir -p ../app/generated && mv generated/*.json ../app/generated/ && [ -f generated/_input.py ] && mv generated/_input.py ../app/generated/_input.py || true"
+generate.shell = "cd contract && pkl eval -m ../app/generated app.pkl && mv ../app/generated/input.py ../app/generated/_input.py"
 
 # Static checker bundled with application-sdk — exits 0 only on full v3 compliance.
 check-v3 = "python -m tools.migrate_v3.check_migration --no-color app/"
 
-# Local boot in combined mode (handler + worker in one process). Uses
-# MockSecretStore from application_sdk.testing.mocks — no Dapr needed.
+# Local boot in combined mode (handler + worker in one process). Requires a
+# Dapr sidecar + Temporal — prefer `stack` (below) which wires up everything.
 dev = "python -m app.run_dev"
+
+# --- ONE-COMMAND local run (recommended) ------------------------------------
+# Backgrounds the Temporal dev server (logs -> /tmp/temporal-dev.log), waits
+# for :7233 to accept connections, then runs the app under a Dapr sidecar in
+# the foreground. Ctrl+C stops the app + Dapr; stop Temporal with `poe stop-temporal`.
+# Run this in ONE terminal:  uv run poe stack
+stack.shell = """
+if ! nc -z 127.0.0.1 7233 2>/dev/null; then
+  echo '[stack] starting Temporal dev server in background (logs: /tmp/temporal-dev.log)';
+  nohup temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233 > /tmp/temporal-dev.log 2>&1 &
+  for i in $(seq 1 30); do nc -z 127.0.0.1 7233 2>/dev/null && break; sleep 1; done;
+fi;
+nc -z 127.0.0.1 7233 2>/dev/null && echo '[stack] Temporal is up on :7233 (UI: http://localhost:8233)' || { echo '[stack] ERROR: Temporal did not come up — see /tmp/temporal-dev.log'; exit 1; };
+dapr run --app-id github-connector --dapr-http-port 3500 --resources-path ./components -- uv run python -m app.run_dev 2>&1 | grep --line-buffered -vE 'placement|scheduler|watchhosts|api/v2/spans'
+"""
+
+# Stop the background Temporal dev server started by `stack`.
+stop-temporal.shell = "pkill -f 'temporal server start-dev' && echo 'Temporal stopped' || echo 'No Temporal dev server running'"
+
+# --- Individual pieces (if you prefer two terminals) ------------------------
+start-temporal.shell = "temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233"
+dev-dapr.shell = "dapr run --app-id github-connector --dapr-http-port 3500 --resources-path ./components -- uv run python -m app.run_dev 2>&1 | grep --line-buffered -vE 'placement|scheduler|watchhosts|api/v2/spans'"
+
+# Config-screen form preview only (no Temporal/Dapr, mocked backend).
+preview.shell = "python serve_playground.py"
 
 # Run tests.
 test       = "pytest -q"

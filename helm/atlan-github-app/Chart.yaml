@@ -1,0 +1,17 @@
+apiVersion: v2
+name: atlan-github-app
+description: Helm chart for Atlan GitHub App Framework v3 connector
+version: 0.1.0
+appVersion: "0.1.0"
+type: application
+
+keywords:
+  - atlan
+  - github
+  - connector
+  - app-framework
+  - v3
+
+maintainers:
+  - name: Atlan
+    email: support@atlan.com

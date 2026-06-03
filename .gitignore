@@ -1,0 +1,79 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.hypothesis/
+
+# Type checking
+.pyright/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+/tmp/
+*.tmp
+*.bak
+
+# App-specific
+# NOTE: app/generated/*.json and _input.py are COMMITTED (not ignored)
+# They are source of truth for the SDK to serve at runtime.
+
+# Pkl dependencies (auto-resolved, can be regenerated)
+# contract/PklProject.deps.json  # Actually, commit this too per spec
+
+# Test outputs
+tests/e2e/histories/*.json
+!tests/e2e/histories/.gitkeep
+
+# Build artifacts
+*.whl

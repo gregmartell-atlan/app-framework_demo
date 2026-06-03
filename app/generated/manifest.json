@@ -1,0 +1,29 @@
+{
+  "name": "github",
+  "label": "GitHub",
+  "description": "Extract GitHub repositories, wikis, YAML files, and SBOM dependencies into Atlan",
+  "category": "git",
+  "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+  "connectorType": "source",
+  "certified": false,
+  "previewStatus": false,
+  "version": "1.0.0",
+  "workflows": {
+    "fetch_metadata": {
+      "name": "github:fetch-metadata",
+      "label": "Extract GitHub Metadata",
+      "description": "Fetch repositories (and optionally wikis, YAML, and SBOMs) and load them into Atlan",
+      "entrypoint": true
+    }
+  },
+  "activities": {
+    "fetch_repos": { "name": "github:fetch_repos", "label": "Fetch repositories", "timeout": 3600, "retry": { "maxAttempts": 3, "backoff": "exponential" } },
+    "fetch_sbom": { "name": "github:fetch_sbom", "label": "Fetch SBOMs", "timeout": 3600, "retry": { "maxAttempts": 3, "backoff": "exponential" } },
+    "transform": { "name": "github:transform", "label": "Transform to Atlan assets", "timeout": 1800, "retry": { "maxAttempts": 3, "backoff": "exponential" } }
+  },
+  "handler": {
+    "class": "GitHubConnectorHandler",
+    "operations": ["test_auth", "preflight_check"],
+    "note": "auth/preflight are Handler operations (DefaultHandler pass-through for preflight); not workflow entrypoints."
+  }
+}

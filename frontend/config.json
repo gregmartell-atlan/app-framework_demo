@@ -1,0 +1,97 @@
+{
+  "id": "workflow",
+  "name": "Sync Wiki to Atlan Glossary",
+  "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+  "config": {
+    "properties": {
+      "github_credential": {
+        "type": "string",
+        "ui": {
+          "widget": "credential",
+          "credentialType": "github_token",
+          "label": "GitHub Credential",
+          "help": "Personal Access Token with repo + read:wiki scopes",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "A GitHub credential is required to clone the wiki" }
+          ]
+        }
+      },
+      "atlan_credential": {
+        "type": "string",
+        "ui": {
+          "widget": "credential",
+          "credentialType": "atlan_api_token",
+          "label": "Atlan API Token",
+          "help": "Found in your Atlan tenant → Settings → API Keys",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "An Atlan API token is required to write glossary terms" }
+          ]
+        }
+      },
+      "repo_full_name": {
+        "type": "string",
+        "ui": {
+          "widget": "input",
+          "label": "GitHub Repository",
+          "help": "The repository whose wiki you want to sync (owner/repo)",
+          "placeholder": "e.g., sony-telemetry/schema-registry",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "Repository is required" }
+          ]
+        }
+      },
+      "glossary_name": {
+        "type": "string",
+        "default": "sony_telemetry",
+        "ui": {
+          "widget": "input",
+          "label": "Atlan Glossary Name",
+          "help": "Target glossary — will be created on first run if it doesn’t exist",
+          "placeholder": "e.g., sony_telemetry",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "Glossary name is required" }
+          ]
+        }
+      },
+      "phase1_filter": {
+        "type": "boolean",
+        "default": true,
+        "ui": {
+          "label": "Phase 1 filter — Client + Shared Schemas only",
+          "help": "When enabled, only Client and Shared Schemas pages are pushed. Disable to include Native + Tooling.",
+          "grid": 12
+        }
+      },
+      "dry_run": {
+        "type": "boolean",
+        "default": false,
+        "ui": {
+          "label": "Dry run (preview — no writes to Atlan)",
+          "help": "Logs what would be synced without creating or updating any glossary terms",
+          "grid": 12
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "credentials",
+        "label": "Credentials",
+        "properties": ["github_credential", "atlan_credential"]
+      },
+      {
+        "id": "connection",
+        "label": "Repository & Glossary",
+        "properties": ["repo_full_name", "glossary_name"]
+      },
+      {
+        "id": "options",
+        "label": "Sync Options",
+        "properties": ["phase1_filter", "dry_run"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+# Glossary Sync Scripts
+
+This directory hosts the thin CLI wrapper for syncing a GitHub wiki to an
+Atlan glossary. It is **Option B** in the three-option deployment matrix:
+
+- **Option A** — GitHub Actions workflow (`.github/workflows/push-glossary.yaml`)
+- **Option B** — Standalone script (this file, `scripts/push_to_atlan.py`)
+- **Option C** — Atlan App Framework task
+
+All three call `app.glossary_sync.sync_wiki_to_glossary`, so behaviour is
+identical across deployment options.
+
+## Required env vars
+
+| Var              | Default                            | Notes                               |
+|------------------|------------------------------------|-------------------------------------|
+| `ATLAN_BASE_URL` | `https://dsm.atlan.com`            | Atlan tenant URL                    |
+| `ATLAN_API_KEY`  | _(required)_                       | Atlan API key                       |
+| `GITHUB_TOKEN`   | _(required)_                       | GitHub PAT — used to clone the wiki |
+| `GITHUB_REPO`    | `sony-telemetry/schema-registry`   | `owner/repo` of the wiki source     |
+| `GLOSSARY_NAME`  | `sony_telemetry`                   | Target Atlan glossary name          |
+
+## CLI flags
+
+```
+python3 scripts/push_to_atlan.py [--dry-run] [--phase1 | --no-phase1]
+```
+
+| Flag           | Effect                                                          |
+|----------------|-----------------------------------------------------------------|
+| `--dry-run`    | Log what would be saved; never call `client.asset.save()`.     |
+| `--phase1`     | Default. Only push Client + Shared Schemas pages.              |
+| `--no-phase1`  | Push every schema page (all tracks).                           |
+
+## Examples
+
+Normal run (Phase 1 scope, writes to Atlan):
+
+```bash
+ATLAN_API_KEY=xxx GITHUB_TOKEN=ghp_yyy \
+  python3 scripts/push_to_atlan.py
+```
+
+Dry run (no writes):
+
+```bash
+ATLAN_API_KEY=xxx GITHUB_TOKEN=ghp_yyy \
+  python3 scripts/push_to_atlan.py --dry-run
+```
+
+Custom glossary name, full scope:
+
+```bash
+ATLAN_API_KEY=xxx GITHUB_TOKEN=ghp_yyy \
+GLOSSARY_NAME=my_test_glossary \
+  python3 scripts/push_to_atlan.py --no-phase1
+```

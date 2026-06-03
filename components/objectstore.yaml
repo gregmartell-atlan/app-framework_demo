@@ -1,0 +1,14 @@
+# Dapr object store binding — local disk (no S3/GCS/Azure needed).
+# The SDK's create_store_from_binding() looks up the component named
+# "objectstore" (DEPLOYMENT_OBJECT_STORE_NAME) and maps the binding type
+# bindings.localstorage -> a local-disk store rooted at rootPath.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: objectstore
+spec:
+  type: bindings.localstorage
+  version: v1
+  metadata:
+    - name: rootPath
+      value: "./local/objectstore"

@@ -1,0 +1,13 @@
+owner: data-platform-team
+domain: commerce
+description: Order processing pipeline — ingests raw order events and produces daily aggregates
+tags:
+  - orders
+  - etl
+  - pii-adjacent
+
+assets:
+  - name: customer_orders
+    table: prod.commerce.customer_orders
+  - name: order_items
+    table: prod.commerce.order_items

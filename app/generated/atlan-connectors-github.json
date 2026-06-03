@@ -1,0 +1,13 @@
+{
+  "credType": "atlan-connectors-github",
+  "name": "GitHub Personal Access Token",
+  "description": "Authenticates with GitHub using a personal access token",
+  "fields": {
+    "token": {
+      "type": "password",
+      "label": "Personal Access Token",
+      "required": true,
+      "helpText": "GitHub PAT with repo and read:org scopes"
+    }
+  }
+}

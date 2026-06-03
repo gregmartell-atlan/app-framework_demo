@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "atlan-github-app.fullname" . }}-worker
+  labels:
+    app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: worker
+spec:
+  # Replicas managed by KEDA ScaledObject
+  replicas: {{ .Values.worker.minReplicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ include "atlan-github-app.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: worker
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--mode"
+            - "worker"
+          ports:
+            - name: health
+              containerPort: {{ .Values.worker.healthPort }}
+              protocol: TCP
+          env:
+            - name: ATLAN_APP_MODULE
+              value: {{ .Values.env.ATLAN_APP_MODULE | quote }}
+            - name: ATLAN_TEMPORAL_HOST
+              value: {{ .Values.temporal.host | quote }}
+            - name: ATLAN_TEMPORAL_NAMESPACE
+              value: {{ .Values.temporal.namespace | quote }}
+            - name: ATLAN_TASK_QUEUE
+              value: {{ .Values.temporal.taskQueue | quote }}
+            - name: ATLAN_HEALTH_PORT
+              value: {{ .Values.worker.healthPort | quote }}
+            - name: ATLAN_LOG_LEVEL
+              value: {{ .Values.env.ATLAN_LOG_LEVEL | quote }}
+            - name: K8S_NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.env.OTEL_EXPORTER_OTLP_ENDPOINT | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.env.OTEL_SERVICE_NAME | quote }}
+          livenessProbe:
+            {{- toYaml .Values.worker.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.worker.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

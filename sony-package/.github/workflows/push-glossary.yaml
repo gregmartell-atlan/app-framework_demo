@@ -1,0 +1,60 @@
+name: Sync Wiki to Atlan Glossary
+
+on:
+  gollum:                          # triggers on wiki edits
+  workflow_dispatch:
+    inputs:
+      atlan_base_url:
+        default: "https://dsm.atlan.com"
+        required: true
+      glossary_name:
+        default: "sony_telemetry"
+        required: true
+      dry_run:
+        type: boolean
+        default: false
+        description: "Preview without writing to Atlan"
+      phase1_filter:
+        type: boolean
+        default: true
+        description: "Only push Client + Shared Schemas pages (Phase 1 scope)"
+  schedule:
+    - cron: '0 6 * * *'           # daily 06:00 UTC safety net
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Sync glossary
+        id: sync
+        env:
+          ATLAN_BASE_URL: ${{ inputs.atlan_base_url || 'https://dsm.atlan.com' }}
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          GLOSSARY_NAME: ${{ inputs.glossary_name || 'sony_telemetry' }}
+          DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
+          PHASE1_FILTER: ${{ inputs.phase1_filter && '--phase1' || '--no-phase1' }}
+        run: |
+          python scripts/push_to_atlan.py $DRY_RUN $PHASE1_FILTER | tee sync.log
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Glossary Sync Result" >> $GITHUB_STEP_SUMMARY
+          echo "- Glossary: \`${{ inputs.glossary_name || 'sony_telemetry' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Atlan: \`${{ inputs.atlan_base_url || 'https://dsm.atlan.com' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Trigger: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Dry run: \`${{ inputs.dry_run || 'false' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -50 sync.log >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,94 @@
+name: Boot Probe (Temporal + Dapr + App)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, poc/**]
+
+jobs:
+  boot-probe:
+    name: Full Stack Boot Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run boot probe integration test
+        run: |
+          uv run pytest tests/integration/test_boot_probe.py -v --tb=short
+        timeout-minutes: 5
+
+      - name: Verify /health endpoint
+        run: |
+          # Start app in background
+          uv run python -m app.run_dev &
+          APP_PID=$!
+
+          # Wait for health check
+          for i in {1..30}; do
+            if curl -f http://localhost:8000/health 2>/dev/null; then
+              echo "Health check passed"
+              break
+            fi
+            sleep 1
+          done
+
+          # Kill app
+          kill $APP_PID || true
+        timeout-minutes: 2
+
+      - name: Verify /manifest matches committed file
+        run: |
+          # Start app in background
+          uv run python -m app.run_dev &
+          APP_PID=$!
+          sleep 5
+
+          # Fetch manifest
+          curl -f http://localhost:8000/manifest > /tmp/manifest_live.json
+
+          # Compare with committed file
+          diff <(jq -S . app/generated/manifest.json) <(jq -S . /tmp/manifest_live.json) || {
+            echo "ERROR: Live manifest differs from committed file"
+            exit 1
+          }
+
+          # Kill app
+          kill $APP_PID || true
+        timeout-minutes: 2
+
+      - name: Verify /workflows/v1/configmap/github matches committed file
+        run: |
+          # Start app in background
+          uv run python -m app.run_dev &
+          APP_PID=$!
+          sleep 5
+
+          # Fetch configmap
+          curl -f http://localhost:8000/workflows/v1/configmap/github > /tmp/github_config_live.json
+
+          # Compare with committed file
+          diff <(jq -S . app/generated/github.json) <(jq -S . /tmp/github_config_live.json) || {
+            echo "ERROR: Live config differs from committed file"
+            exit 1
+          }
+
+          # Kill app
+          kill $APP_PID || true
+        timeout-minutes: 2

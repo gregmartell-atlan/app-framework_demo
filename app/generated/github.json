@@ -1,0 +1,110 @@
+{
+  "id": "github",
+  "name": "GitHub Metadata Extraction",
+  "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+  "config": {
+    "properties": {
+      "github_token": {
+        "type": "string",
+        "ui": {
+          "widget": "password",
+          "label": "GitHub Personal Access Token",
+          "help": "PAT with repo + read:org scopes",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "A GitHub token is required" }
+          ]
+        }
+      },
+      "organization": {
+        "type": "string",
+        "ui": {
+          "widget": "input",
+          "label": "GitHub Organization or User",
+          "help": "The org or user account whose repositories you want to extract",
+          "placeholder": "e.g., sony-telemetry",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "An organization or user is required" }
+          ]
+        }
+      },
+      "repositories": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": [],
+        "ui": {
+          "widget": "tags",
+          "label": "Specific Repositories (optional)",
+          "help": "Limit extraction to these repos (owner/repo). Leave empty to extract all.",
+          "placeholder": "e.g., sony-telemetry/schema-registry",
+          "grid": 12
+        }
+      },
+      "max_items": {
+        "type": "integer",
+        "default": 1000,
+        "ui": {
+          "widget": "number",
+          "label": "Max repositories",
+          "help": "Maximum number of repositories to fetch",
+          "grid": 12
+        }
+      },
+      "extract_wiki": {
+        "type": "boolean",
+        "default": false,
+        "ui": {
+          "label": "Extract wiki pages",
+          "help": "Clone and extract each repository's wiki",
+          "grid": 12
+        }
+      },
+      "extract_yaml": {
+        "type": "boolean",
+        "default": false,
+        "ui": {
+          "label": "Extract YAML files",
+          "help": "Extract YAML configuration files from repositories",
+          "grid": 12
+        }
+      },
+      "extract_sbom": {
+        "type": "boolean",
+        "default": false,
+        "ui": {
+          "label": "Extract SBOM (dependencies)",
+          "help": "Generate and extract a Software Bill of Materials per repository",
+          "grid": 12
+        }
+      },
+      "sbom_poll_interval_seconds": {
+        "type": "integer",
+        "default": 15,
+        "ui": {
+          "widget": "number",
+          "label": "SBOM poll interval (seconds)",
+          "help": "How often to poll GitHub for SBOM report readiness",
+          "grid": 12
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "credentials",
+        "label": "Credentials",
+        "properties": ["github_token"]
+      },
+      {
+        "id": "connection",
+        "label": "Source",
+        "properties": ["organization", "repositories", "max_items"]
+      },
+      {
+        "id": "options",
+        "label": "Extraction Options",
+        "properties": ["extract_wiki", "extract_yaml", "extract_sbom", "sbom_poll_interval_seconds"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "resolvedDependencies": {
+    "atlan-toolkit": {
+      "type": "remote",
+      "uri": "package://pkg.pkl-lang.org/github.com/atlanhq/application-toolkit@0.1.0",
+      "checksums": {
+        "sha256": "placeholder-checksum-for-toolkit-package"
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+name: App Framework v3 Readiness Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, poc/**]
+
+jobs:
+  v3-readiness:
+    name: Run v3 Readiness Validation
+    uses: atlanhq/application-sdk/.github/workflows/v3-readiness-check.yaml@main
+    with:
+      app_repo: gregmartell-atlan/app-framework_demo
+      branch: ${{ github.head_ref || github.ref_name }}
+    secrets:
+      app_repo_token: ${{ secrets.GITHUB_TOKEN }}

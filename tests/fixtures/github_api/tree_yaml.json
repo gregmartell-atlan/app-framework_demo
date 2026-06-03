@@ -1,0 +1,13 @@
+{
+  "sha": "abc123",
+  "url": "https://api.github.com/repos/gregmartell-atlan/fabric-tags/git/trees/abc123",
+  "tree": [
+    {"path": "README.md",                      "type": "blob", "sha": "aaa1", "size": 512},
+    {"path": "components/pubsub.yaml",         "type": "blob", "sha": "bbb1", "size": 910},
+    {"path": "components/statestore.yaml",     "type": "blob", "sha": "bbb2", "size": 243},
+    {"path": "src/main.py",                    "type": "blob", "sha": "ccc1", "size": 1024},
+    {"path": ".github/workflows/ci.yml",       "type": "blob", "sha": "ddd1", "size": 256},
+    {"path": "nested/dir",                     "type": "tree", "sha": "eee1", "size": 0}
+  ],
+  "truncated": false
+}
