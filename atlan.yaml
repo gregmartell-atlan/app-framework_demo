@@ -1,17 +1,89 @@
-# Single source of truth for the `atlan` CLI (atlan app deploy / publish / marketplace).
-# See the app-marketplace plugin docs for the full field reference.
+# Atlan App Framework v3 — marketplace manifest
+# Identity fields sourced from contract/app.pkl; app_id written back by `atlan app register`.
+# deploy: block grounded in helm/values.yaml (ADR-0009 split) + contract/app.pkl.
 name: github
-app_id: "REPLACE_WITH_GLOBAL_MARKETPLACE_UUID"   # provisioned when the app is registered in GM
-display_name: "GitHub"
+app_id: 019e8ed7-4b44-7600-a5e7-0a33f9b9f372
+display_name: GitHub
 type: connector
-execution_mode: argo
-self_deployed_runtime: true
+execution_mode: native
+icon_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+visibility: public
+build_tag: v1
+self_deployed_runtime: false
+
 deploy:
-  replicaCount: 1
-  containerPort: 8000
+  # ── Topology (ADR-0009 handler/worker split) ───────────────────────────────
+  replicaCount: 1            # handler replicas; workers autoscale via KEDA below
+  containerPort: 8000        # handler HTTP API — matches Dockerfile + helm handler.port
+  splitDeploymentEnabled: true
+  serverCapacityType: on_demand
+
+  # ── Worker autoscaling (KEDA → Temporal queue depth) ───────────────────────
+  keda:
+    enabled: true
+    minReplicaCount: 0       # scale-to-zero when idle (helm worker.minReplicas)
+    maxReplicaCount: 10      # helm worker.maxReplicas
+    temporal:
+      namespace: "default"   # platform-managed Temporal namespace
+      targetQueueSize: "5"   # tasks per worker before scale-up (helm targetTasksPerWorker)
+
+  vpa:
+    enabled: true
+    minAllowed:
+      cpu: 250m
+      memory: 256Mi
+
+  # ── Resources (helm worker profile: wiki clone + asset transform) ──────────
+  resources:
+    requests:
+      cpu: "500m"
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  # ── Runtime env — credential-driven connector, no source-warehouse config ──
   env:
-    ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "1800"
+    ATLAN_APP_MODULE: "app.connector:GitHubConnector"
+    ATLAN_LOG_LEVEL: "INFO"
+    OTEL_SERVICE_NAME: "atlan-github-app"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.observability.svc.cluster.local:4317"
+    # git tuning for wiki cloning over slow links (.env.example)
+    GIT_HTTP_LOW_SPEED_LIMIT: "1000"
+    GIT_HTTP_LOW_SPEED_TIME: "120"
+
+  # ── Dapr building blocks ────────────────────────────────────────────────────
+  # objectstore: activity file hand-off (repos_file → transform; wiki clone staging)
+  # secretstore: resolves the user-supplied github_token / atlan_api_token credentials
   dapr:
-    objectstore: true    # connector writes repos/wiki/yaml/sbom JSONL to object store
-    secretstore: true    # GitHub PAT / Atlan credential resolved from secret store
-    statestore: false    # in-memory locally (components/statestore.yaml); not required when deployed
+    objectstore: true
+    secretstore: true
+    statestore: false
+    eventstore: false
+    subscription: false
+    configurationstore: false
+    lock: false
+
+  # ── No platform secrets to pre-provision ───────────────────────────────────
+  # Both credentials are supplied by the user at trigger time (form widget:
+  # credential → github_token / atlan_api_token) and resolved via the secret
+  # store. This is why the connector is source-agnostic — it writes glossary
+  # terms through the user's Atlan API token, not a baked-in service account.
+  envFrom:
+    secrets: []
+    configmaps: []
+
+  # ── Ingress: NOT required for this connector (verified) ─────────────────────
+  # Native App Framework v3 connectors are reached by the platform over an
+  # INTERNAL ClusterIP service (the marketplace catalog shows peers resolving to
+  # http://<app>.<app>-app.svc.cluster.local), and the setup form is rendered by
+  # Atlan's central UI from the manifest registered via `atlan app register` —
+  # NOT from a public route on this app. The app sub-chart ingress is disabled
+  # by default. Public ingress (like the Automation Engine's /automation/) is
+  # only for standalone apps that serve their own end-user UI.
+  #
+  # If a public route is ever needed, the `strip-<app>-prefix` Kong plugin must
+  # be REGISTERED on the gateway first — it is NOT auto-derived from the app name
+  # (confirmed: strip-automation-prefix had to be set up by hand).
+  ingress:
+    enabled: false
