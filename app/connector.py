@@ -1,11 +1,13 @@
 """GitHub App Framework v3 connector.
 
 Canonical structure (reconciled against atlanhq/application-sdk v3.4.0):
-- App subclass exposes triggerable Temporal workflows via @entrypoint.
-- @task methods are activities, invoked from workflows via `await self.<task>(input)`.
+- App subclass exposes ONE triggerable Temporal workflow via @entrypoint
+  (sync_glossary). Single-entrypoint apps need no ?entrypoint selection, which
+  the bundled setup-form SPA relies on.
+- @task methods are activities, invoked from the workflow via `await self.<task>()`.
+  Activity names are bare; the SDK prepends the app name (-> github:<name>).
 - auth/preflight are Handler operations (NOT @entrypoint) — implemented on
   GitHubConnectorHandler, auto-discovered by the `{AppClassName}Handler` convention.
-Activity naming: github:task_name (verified by v3-readiness workflow).
 """
 
 import asyncio
@@ -13,11 +15,10 @@ import json
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar, Optional
 
-from typing import ClassVar
-
-from application_sdk.app import App, task, entrypoint, AtlanClientMixin
+from pydantic import Field
+from application_sdk.app import App, task, entrypoint, AtlanClientMixin, Input
 from application_sdk.handler.base import DefaultHandler
 from application_sdk.handler.contracts import (
     AuthInput as HandlerAuthInput,
@@ -58,12 +59,29 @@ from app.credentials import GitHubTokenCredential
 from app.handler import handle_auth, handle_glossary_sync
 
 
+class SyncGlossaryFormInput(Input, allow_unbounded_fields=True):
+    """Flat workflow input — fields match the setup form (app/generated/github.json).
+
+    Kept flat (not nested credential dicts) so the playground form maps 1:1 onto
+    the workflow start payload. The workflow assembles the nested GlossarySyncInput
+    for the activity.
+    """
+
+    github_token: str = Field(..., description="GitHub PAT with repo + read:wiki scopes")
+    atlan_base_url: str = Field(default="https://dsm.atlan.com", description="Atlan base URL")
+    atlan_api_key: str = Field(..., description="Atlan API key")
+    repo_full_name: str = Field(..., description="owner/repo whose wiki to sync")
+    glossary_name: str = Field(default="sony_telemetry", description="Target Atlan glossary name")
+    phase1_filter: bool = Field(default=True, description="Only Client + Shared Schemas pages")
+    dry_run: bool = Field(default=False, description="Preview without writing to Atlan")
+
+
 class GitHubConnector(AtlanClientMixin, App):
-    """Atlan GitHub connector — extracts repos, wikis, YAML files, and SBOMs.
+    """Atlan GitHub connector — wiki -> Atlan glossary sync (+ repo/YAML/SBOM activities).
 
     v3-canonical:
-    - Extends App; exposes workflows via @entrypoint (each becomes a Temporal workflow)
-    - @task methods are activities; workflows invoke them with `await self.<task>(input)`
+    - Extends App; exposes the sync_glossary workflow via @entrypoint
+    - @task methods are activities; the workflow invokes them with `await self.<task>()`
     - auth/preflight live on GitHubConnectorHandler (see below), not as @entrypoint
     - All methods have typed Input/Output (no bare Dict/Any)
     """
@@ -71,31 +89,35 @@ class GitHubConnector(AtlanClientMixin, App):
     name: ClassVar[str] = "github"
     version: ClassVar[str] = "1.0.0"
 
-    # ─── Workflows (@entrypoint — triggerable via POST /workflows/v1/start?entrypoint=) ─
+    # ─── Workflow (@entrypoint) ─────────────────────────────────────────
 
     @entrypoint
-    async def extract(self, input: GitHubExtractionInput) -> GitHubExtractionOutput:
-        """Extraction workflow: run the fetch_repos activity.
+    async def sync_glossary(self, input: SyncGlossaryFormInput) -> GlossarySyncOutput:
+        """Glossary-sync workflow: assemble the activity input and run it.
 
-        Orchestration only — all I/O happens inside the @task activity, keeping
-        the workflow deterministic per the SDK contract.
+        Deterministic orchestration only — the flat form fields are folded into
+        the nested GlossarySyncInput here, then the activity does all I/O.
         """
-        return await self.fetch_repos(input)
+        nested = GlossarySyncInput(
+            repo_full_name=input.repo_full_name,
+            github_credential={"token": input.github_token},
+            atlan_credential={"base_url": input.atlan_base_url, "api_key": input.atlan_api_key},
+            glossary_name=input.glossary_name,
+            phase1_filter=input.phase1_filter,
+            dry_run=input.dry_run,
+        )
+        return await self.run_glossary_sync(nested)
 
-    @entrypoint
-    async def sync_glossary(self, input: GlossarySyncInput) -> GlossarySyncOutput:
-        """Glossary-sync workflow: run the sync activity (clone wiki -> Atlan terms)."""
-        return await self.run_glossary_sync(input)
+    # ─── Activities (@task) ─────────────────────────────────────────
 
-    # ─── Activities (@task) ───────────────────────────────────────────
+    @task(name="sync_glossary", timeout_seconds=1800, retry_max_attempts=2)
+    async def run_glossary_sync(self, input: GlossarySyncInput) -> GlossarySyncOutput:
+        """Activity: clone the wiki and upsert pages as Atlan glossary terms."""
+        return await handle_glossary_sync(input)
 
-    @task(name="github:fetch_repos")
+    @task(name="fetch_repos")
     async def fetch_repos(self, input: GitHubExtractionInput) -> GitHubExtractionOutput:
-        """Fetch repositories from GitHub.
-
-        Extracts repos, and optionally wikis/YAML files based on input flags.
-        Does NOT handle SBOM (that's a separate task due to async generation).
-        """
+        """Fetch repositories (and optionally wikis/YAML) from GitHub."""
         token = input.credential.get("token")
         cred = GitHubTokenCredential(token=token)
 
@@ -149,18 +171,14 @@ class GitHubConnector(AtlanClientMixin, App):
         )
 
     @task(
-        name="github:fetch_sbom",
+        name="fetch_sbom",
         timeout_seconds=3600,
         heartbeat_timeout_seconds=120,
         auto_heartbeat_seconds=10,
         retry_max_attempts=3,
     )
     async def fetch_sbom(self, input: FetchSbomInput) -> FetchSbomOutput:
-        """Fetch SBOM (Software Bill of Materials) for repositories.
-
-        Uses typed heartbeat (SbomProgress) for resume support. Exponential
-        backoff polling capped at 300s.
-        """
+        """Fetch SBOMs for repositories (typed heartbeat resume; backoff capped 300s)."""
         token = input.credential.get("token")
         cred = GitHubTokenCredential(token=token)
 
@@ -245,13 +263,9 @@ class GitHubConnector(AtlanClientMixin, App):
             summary=f"SBOM generation: {len(successful_repos)} succeeded, {len(failed_repos)} failed",
         )
 
-    @task(name="github:transform")
+    @task(name="transform")
     async def transform(self, input: TransformInput) -> TransformOutput:
-        """Transform GitHub records to Atlan assets.
-
-        Reads JSONL files from extraction, maps to pyatlan_v9 assets, and writes them
-        to Atlan via the client.
-        """
+        """Transform GitHub records to Atlan assets (reads JSONL, writes via pyatlan)."""
         from pyatlan_v9.client.atlan import AtlanClient as _AtlanClient
         _cred = input.atlan_credential
         atlan_client = _AtlanClient(
@@ -369,15 +383,6 @@ class GitHubConnector(AtlanClientMixin, App):
             sbom_relationships_count=sbom_relationships_count,
         )
 
-    @task(name="github:sync_glossary", timeout_seconds=1800, retry_max_attempts=2)
-    async def run_glossary_sync(self, input: GlossarySyncInput) -> GlossarySyncOutput:
-        """Activity: sync a GitHub wiki to an Atlan glossary (shared routine).
-
-        Invoked by the sync_glossary @entrypoint workflow. All side effects
-        (git clone, Atlan writes) live here in the activity, not the workflow.
-        """
-        return await handle_glossary_sync(input)
-
     # ─── Glossary helpers ─────────────────────────────────────────────
 
     def _org_from_wiki_file(self, wiki_file_path: str) -> Optional[str]:
@@ -448,9 +453,9 @@ class GitHubConnector(AtlanClientMixin, App):
 class GitHubConnectorHandler(DefaultHandler):
     """HTTP handler for the GitHub connector (auto-discovered by name convention).
 
-    Canonical placement of auth/preflight: these are Handler operations, not
-    workflow @entrypoints. Inherits DefaultHandler pass-through for
-    preflight_check / fetch_metadata; overrides test_auth with real validation.
+    Canonical placement of auth/preflight: Handler operations, not workflow
+    @entrypoints. Inherits DefaultHandler pass-through for preflight_check /
+    fetch_metadata; overrides test_auth with real GitHub token validation.
     """
 
     async def test_auth(self, input: HandlerAuthInput) -> HandlerAuthOutput:

@@ -1,112 +1,30 @@
 {
   "name": "github",
   "label": "GitHub",
-  "description": "Extract repositories, wikis, YAML files, and SBOMs from GitHub",
+  "description": "Sync a GitHub wiki to an Atlan glossary (plus repo/YAML/SBOM extraction activities)",
   "category": "git",
   "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
   "connectorType": "source",
   "certified": false,
   "previewStatus": false,
-  "version": "0.1.0",
-  "tasks": {
-    "extract": {
-      "name": "github:fetch_repos",
-      "label": "Extract GitHub Metadata",
-      "description": "Fetch repositories, wikis, YAML files, and SBOMs from GitHub",
-      "type": "metadata",
-      "timeout": 3600,
-      "retry": {
-        "maxAttempts": 3,
-        "backoff": "exponential"
-      },
-      "outputs": {
-        "repos_file": { "type": "file", "description": "Repository data file" },
-        "wiki_file": { "type": "file", "description": "Wiki pages data file" },
-        "yaml_file": { "type": "file", "description": "YAML files data file" },
-        "sbom_file": { "type": "file", "description": "SBOM dependencies data file" },
-        "extraction_summary": { "type": "string", "description": "Summary of extraction results" },
-        "repos_count": { "type": "number", "description": "Number of repositories extracted" },
-        "wiki_pages_count": { "type": "number", "description": "Number of wiki pages extracted" },
-        "yaml_files_count": { "type": "number", "description": "Number of YAML files extracted" },
-        "sbom_dependencies_count": { "type": "number", "description": "Number of SBOM dependencies extracted" }
-      }
-    },
-    "transform": {
-      "name": "github:transform",
-      "label": "Transform to Atlan Assets",
-      "description": "Map GitHub data to Atlan asset types",
-      "type": "metadata",
-      "dependencies": ["extract"],
-      "timeout": 1800,
-      "retry": {
-        "maxAttempts": 3,
-        "backoff": "exponential"
-      },
-      "inputs": {
-        "repos_file": "$.extract.outputs.repos_file",
-        "wiki_file": "$.extract.outputs.wiki_file",
-        "yaml_file": "$.extract.outputs.yaml_file",
-        "sbom_file": "$.extract.outputs.sbom_file"
-      },
-      "outputs": {
-        "assets_created": { "type": "number", "description": "Count of assets created" },
-        "assets_updated": { "type": "number", "description": "Count of assets updated" },
-        "repos_count": { "type": "number", "description": "Repository assets" },
-        "wiki_pages_count": { "type": "number", "description": "Wiki page assets" },
-        "yaml_files_count": { "type": "number", "description": "YAML file assets" },
-        "sbom_dependencies_count": { "type": "number", "description": "SBOM dependency assets" },
-        "sbom_relationships_count": { "type": "number", "description": "SBOM relationship assets" }
-      }
-    },
-    "fetch_sbom": {
-      "name": "github:fetch_sbom",
-      "label": "Fetch SBOMs",
-      "description": "Generate and retrieve Software Bill of Materials for repositories",
-      "type": "metadata",
-      "timeout": 3600,
-      "retry": {
-        "maxAttempts": 3,
-        "backoff": "exponential"
-      },
-      "outputs": {
-        "sbom_files": { "type": "file", "description": "Generated SBOM files" },
-        "successful_repos": { "type": "array", "description": "Repos with successful SBOM generation" },
-        "failed_repos": { "type": "array", "description": "Repos that failed SBOM generation" },
-        "summary": { "type": "string", "description": "Summary of SBOM generation" }
-      }
-    },
+  "version": "1.0.0",
+  "workflows": {
     "sync_glossary": {
-      "name": "github:sync_glossary",
+      "name": "github:sync-glossary",
       "label": "Sync Wiki to Atlan Glossary",
       "description": "Clone the GitHub wiki and upsert pages as Atlan Glossary Terms",
-      "type": "metadata",
-      "timeout": 1800,
-      "retry": {
-        "maxAttempts": 2,
-        "backoff": "exponential"
-      },
-      "outputs": {
-        "glossary_qn": { "type": "string", "description": "Qualified name of the target glossary" },
-        "pages_scanned": { "type": "number", "description": "Total schema pages found in wiki" },
-        "categories_created": { "type": "number", "description": "Glossary categories created" },
-        "terms_created": { "type": "number", "description": "Glossary terms created" },
-        "terms_updated": { "type": "number", "description": "Glossary terms updated" },
-        "readmes_saved": { "type": "number", "description": "Readme assets saved" },
-        "relationships_linked": { "type": "number", "description": "Term relationships linked" },
-        "summary": { "type": "string", "description": "Human-readable sync summary" }
-      }
+      "entrypoint": true
     }
   },
-  "handlers": {
-    "auth": {
-      "name": "auth",
-      "label": "Authentication",
-      "description": "Validate GitHub credentials"
-    },
-    "preflight": {
-      "name": "preflight",
-      "label": "Preflight Check",
-      "description": "Validate access and permissions"
-    }
+  "activities": {
+    "sync_glossary": { "name": "github:sync_glossary", "label": "Sync glossary (activity)", "timeout": 1800, "retry": { "maxAttempts": 2, "backoff": "exponential" } },
+    "fetch_repos": { "name": "github:fetch_repos", "label": "Fetch repositories", "timeout": 3600, "retry": { "maxAttempts": 3, "backoff": "exponential" } },
+    "transform": { "name": "github:transform", "label": "Transform to Atlan assets", "timeout": 1800, "retry": { "maxAttempts": 3, "backoff": "exponential" } },
+    "fetch_sbom": { "name": "github:fetch_sbom", "label": "Fetch SBOMs", "timeout": 3600, "retry": { "maxAttempts": 3, "backoff": "exponential" } }
+  },
+  "handler": {
+    "class": "GitHubConnectorHandler",
+    "operations": ["test_auth", "preflight_check"],
+    "note": "auth/preflight are Handler operations (DefaultHandler pass-through for preflight); not workflow entrypoints."
   }
 }

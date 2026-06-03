@@ -1,22 +1,27 @@
-"""v3 readiness compliance tests.
+"""v3 readiness + canonical-structure compliance tests.
 
-Validates the connector satisfies Atlan App Framework v3 requirements:
-- App class shape (name ClassVar, no legacy decorators)
+Validates the connector satisfies Atlan App Framework v3 and matches the
+canonical atlanhq/application-sdk topology:
+- App class shape (name ClassVar, extends App)
+- sync_glossary is the workflow @entrypoint; run_glossary_sync is its activity
+- auth/preflight are Handler ops (GitHubConnectorHandler), NOT App @entrypoints
 - All @task/@entrypoint I/O inherits from SDK Input/Output
 - Credential registration via CredentialTypeRegistry
 - Contract round-trip serialization
-- MockSecretStore/MockStateStore construction
 """
+
+import inspect
 
 import pytest
 from application_sdk.app import Input, Output
 from application_sdk.credentials import CredentialTypeRegistry
+from application_sdk.handler.base import Handler
 from application_sdk.testing.mocks import MockSecretStore, MockStateStore
 
 import app.credentials  # noqa: F401 — side-effect: registers credential types
 
 
-# ─── App class shape ─────────────────────────────────────────────────────────
+# ─── App class shape ──────────────────────────────────────────────
 
 def test_connector_has_name_classvar():
     from app.connector import GitHubConnector
@@ -34,7 +39,39 @@ def test_connector_extends_app():
     assert issubclass(GitHubConnector, App)
 
 
-# ─── SDK Input / Output base class compliance ─────────────────────────────────
+# ─── Canonical workflow / handler topology ───────────────────────────────
+
+def test_sync_glossary_workflow_and_activity_exist():
+    """sync_glossary is the @entrypoint workflow; run_glossary_sync is its @task activity."""
+    from app.connector import GitHubConnector
+    assert inspect.iscoroutinefunction(GitHubConnector.sync_glossary)
+    assert inspect.iscoroutinefunction(GitHubConnector.run_glossary_sync)
+
+
+def test_auth_preflight_not_app_entrypoints():
+    """auth/preflight moved to the Handler — must not be App methods."""
+    from app.connector import GitHubConnector
+    assert not hasattr(GitHubConnector, "auth")
+    assert not hasattr(GitHubConnector, "preflight")
+
+
+def test_handler_discovered_by_convention():
+    """{AppClassName}Handler subclasses Handler so load_handler_class finds it."""
+    from app.connector import GitHubConnectorHandler
+    assert issubclass(GitHubConnectorHandler, Handler)
+
+
+def test_handler_overrides_test_auth():
+    from app.connector import GitHubConnectorHandler
+    assert inspect.iscoroutinefunction(GitHubConnectorHandler.test_auth)
+
+
+def test_workflow_input_inherits_sdk_input():
+    from app.connector import SyncGlossaryFormInput
+    assert issubclass(SyncGlossaryFormInput, Input)
+
+
+# ─── SDK Input / Output base class compliance ─────────────────────────────
 
 @pytest.mark.parametrize("cls_name", [
     "AuthInput",
@@ -64,7 +101,7 @@ def test_output_classes_inherit_from_sdk_output(cls_name):
     assert issubclass(cls, Output), f"{cls_name} must inherit from application_sdk.app.Output"
 
 
-# ─── Credential registry ──────────────────────────────────────────────────────
+# ─── Credential registry ───────────────────────────────────────────
 
 def test_github_token_credential_registered():
     r = CredentialTypeRegistry()
@@ -81,44 +118,26 @@ def test_atlan_api_token_builtin_registered():
     assert cls.__name__ == "AtlanApiToken"
 
 
-# ─── Contract round-trip (model_dump / model_validate) ───────────────────────
+# ─── Contract round-trip (model_dump / model_validate) ──────────────────────
 
 def test_auth_input_round_trip():
     from app.contracts import AuthInput
     original = AuthInput(credential={"token": "ghp_test"}, extraction_method="direct")
-    dumped = original.model_dump()
-    restored = AuthInput.model_validate(dumped)
+    restored = AuthInput.model_validate(original.model_dump())
     assert restored.credential == original.credential
 
 
-def test_preflight_input_round_trip():
-    from app.contracts import PreflightInput
-    original = PreflightInput(organization="sony-telemetry", credential={"token": "ghp_test"})
-    dumped = original.model_dump()
-    restored = PreflightInput.model_validate(dumped)
-    assert restored.organization == "sony-telemetry"
-
-
-def test_extraction_output_round_trip():
-    from app.contracts import GitHubExtractionOutput
-    original = GitHubExtractionOutput(
-        extraction_summary="ok",
-        repos_count=5,
-        wiki_pages_count=10,
-        yaml_files_count=2,
+def test_sync_glossary_form_input_round_trip():
+    from app.connector import SyncGlossaryFormInput
+    original = SyncGlossaryFormInput(
+        github_token="ghp_x",
+        atlan_api_key="key",
+        repo_full_name="sony-telemetry/schema-registry",
     )
-    dumped = original.model_dump()
-    restored = GitHubExtractionOutput.model_validate(dumped)
-    assert restored.repos_count == 5
-    assert restored.wiki_pages_count == 10
-
-
-def test_transform_output_round_trip():
-    from app.contracts import TransformOutput
-    original = TransformOutput(assets_created=42, repos_count=3)
-    dumped = original.model_dump()
-    restored = TransformOutput.model_validate(dumped)
-    assert restored.assets_created == 42
+    restored = SyncGlossaryFormInput.model_validate(original.model_dump())
+    assert restored.repo_full_name == "sony-telemetry/schema-registry"
+    assert restored.glossary_name == "sony_telemetry"  # default applied
+    assert restored.phase1_filter is True
 
 
 def test_glossary_sync_output_round_trip():
@@ -128,27 +147,17 @@ def test_glossary_sync_output_round_trip():
         terms_created=10,
         summary="Synced 10 terms",
     )
-    dumped = original.model_dump()
-    restored = GlossarySyncOutput.model_validate(dumped)
+    restored = GlossarySyncOutput.model_validate(original.model_dump())
     assert restored.terms_created == 10
     assert restored.summary == "Synced 10 terms"
 
 
-# ─── MockSecretStore / MockStateStore construction ───────────────────────────
+# ─── MockSecretStore / MockStateStore construction ────────────────────────
 
-def test_connector_instantiation_with_mocks():
-    """App should be constructible — no mandatory external stores at init time."""
+def test_connector_instantiation():
     from app.connector import GitHubConnector
-    # App.__init__ accepts no required args; mocks are injected via context at runtime.
-    # Verify the class is instantiable without raising.
     connector = GitHubConnector()
     assert connector is not None
-
-
-def test_mock_secret_store_provides_secrets():
-    store = MockSecretStore(secrets={"ATLAN_API_KEY": "test-key"})
-    # MockSecretStore stores the secrets dict; verify it is accessible
-    assert store._secrets.get("ATLAN_API_KEY") == "test-key"
 
 
 def test_mock_state_store_is_constructible():
