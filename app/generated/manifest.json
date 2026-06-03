@@ -7,7 +7,7 @@
   "connectorType": "source",
   "certified": false,
   "previewStatus": false,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "tasks": {
     "extract": {
       "name": "github:fetch_repos",
@@ -20,42 +20,15 @@
         "backoff": "exponential"
       },
       "outputs": {
-        "repos_file": {
-          "type": "file",
-          "description": "File reference containing repository data"
-        },
-        "wiki_file": {
-          "type": "file",
-          "description": "File reference containing wiki page data"
-        },
-        "yaml_file": {
-          "type": "file",
-          "description": "File reference containing YAML file data"
-        },
-        "sbom_file": {
-          "type": "file",
-          "description": "File reference containing SBOM dependency data"
-        },
-        "extraction_summary": {
-          "type": "string",
-          "description": "Summary of extraction results"
-        },
-        "repos_count": {
-          "type": "number",
-          "description": "Number of repositories extracted"
-        },
-        "wiki_pages_count": {
-          "type": "number",
-          "description": "Number of wiki pages extracted"
-        },
-        "yaml_files_count": {
-          "type": "number",
-          "description": "Number of YAML files extracted"
-        },
-        "sbom_dependencies_count": {
-          "type": "number",
-          "description": "Number of SBOM dependencies extracted"
-        }
+        "repos_file": { "type": "file", "description": "Repository data file" },
+        "wiki_file": { "type": "file", "description": "Wiki pages data file" },
+        "yaml_file": { "type": "file", "description": "YAML files data file" },
+        "sbom_file": { "type": "file", "description": "SBOM dependencies data file" },
+        "extraction_summary": { "type": "string", "description": "Summary of extraction results" },
+        "repos_count": { "type": "number", "description": "Number of repositories extracted" },
+        "wiki_pages_count": { "type": "number", "description": "Number of wiki pages extracted" },
+        "yaml_files_count": { "type": "number", "description": "Number of YAML files extracted" },
+        "sbom_dependencies_count": { "type": "number", "description": "Number of SBOM dependencies extracted" }
       }
     },
     "transform": {
@@ -76,40 +49,19 @@
         "sbom_file": "$.extract.outputs.sbom_file"
       },
       "outputs": {
-        "assets_created": {
-          "type": "number",
-          "description": "Count of assets created"
-        },
-        "assets_updated": {
-          "type": "number",
-          "description": "Count of assets updated"
-        },
-        "repos_count": {
-          "type": "number",
-          "description": "Repository assets created"
-        },
-        "wiki_pages_count": {
-          "type": "number",
-          "description": "Wiki page assets created"
-        },
-        "yaml_files_count": {
-          "type": "number",
-          "description": "YAML file assets created"
-        },
-        "sbom_dependencies_count": {
-          "type": "number",
-          "description": "SBOM dependency assets created"
-        },
-        "sbom_relationships_count": {
-          "type": "number",
-          "description": "SBOM relationship assets created"
-        }
+        "assets_created": { "type": "number", "description": "Count of assets created" },
+        "assets_updated": { "type": "number", "description": "Count of assets updated" },
+        "repos_count": { "type": "number", "description": "Repository assets" },
+        "wiki_pages_count": { "type": "number", "description": "Wiki page assets" },
+        "yaml_files_count": { "type": "number", "description": "YAML file assets" },
+        "sbom_dependencies_count": { "type": "number", "description": "SBOM dependency assets" },
+        "sbom_relationships_count": { "type": "number", "description": "SBOM relationship assets" }
       }
     },
     "fetch_sbom": {
       "name": "github:fetch_sbom",
-      "label": "Fetch SBOM",
-      "description": "Generate and download Software Bill of Materials for repositories",
+      "label": "Fetch SBOMs",
+      "description": "Generate and retrieve Software Bill of Materials for repositories",
       "type": "metadata",
       "timeout": 3600,
       "retry": {
@@ -117,28 +69,16 @@
         "backoff": "exponential"
       },
       "outputs": {
-        "sbom_files": {
-          "type": "array",
-          "description": "List of SBOM file references"
-        },
-        "successful_repos": {
-          "type": "array",
-          "description": "Repos with successful SBOM generation"
-        },
-        "failed_repos": {
-          "type": "array",
-          "description": "Repos that failed SBOM generation"
-        },
-        "summary": {
-          "type": "string",
-          "description": "Summary of SBOM generation results"
-        }
+        "sbom_files": { "type": "file", "description": "Generated SBOM files" },
+        "successful_repos": { "type": "array", "description": "Repos with successful SBOM generation" },
+        "failed_repos": { "type": "array", "description": "Repos that failed SBOM generation" },
+        "summary": { "type": "string", "description": "Summary of SBOM generation" }
       }
     },
     "sync_glossary": {
       "name": "github:sync_glossary",
       "label": "Sync Wiki to Atlan Glossary",
-      "description": "Clone the GitHub wiki and upsert glossary terms in Atlan",
+      "description": "Clone the GitHub wiki and upsert pages as Atlan Glossary Terms",
       "type": "metadata",
       "timeout": 1800,
       "retry": {
@@ -146,22 +86,14 @@
         "backoff": "exponential"
       },
       "outputs": {
-        "glossary_qn": {
-          "type": "string",
-          "description": "Qualified name of the target glossary"
-        },
-        "terms_created": {
-          "type": "number",
-          "description": "Count of new glossary terms created"
-        },
-        "terms_updated": {
-          "type": "number",
-          "description": "Count of glossary terms updated"
-        },
-        "summary": {
-          "type": "string",
-          "description": "Human-readable run summary"
-        }
+        "glossary_qn": { "type": "string", "description": "Qualified name of the target glossary" },
+        "pages_scanned": { "type": "number", "description": "Total schema pages found in wiki" },
+        "categories_created": { "type": "number", "description": "Glossary categories created" },
+        "terms_created": { "type": "number", "description": "Glossary terms created" },
+        "terms_updated": { "type": "number", "description": "Glossary terms updated" },
+        "readmes_saved": { "type": "number", "description": "Readme assets saved" },
+        "relationships_linked": { "type": "number", "description": "Term relationships linked" },
+        "summary": { "type": "string", "description": "Human-readable sync summary" }
       }
     }
   },

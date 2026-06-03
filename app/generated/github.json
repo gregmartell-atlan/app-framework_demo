@@ -1,129 +1,103 @@
 {
-  "auth": {
-    "label": "Authentication",
-    "description": "Configure GitHub authentication",
+  "id": "github",
+  "name": "GitHub Connector",
+  "logo": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+  "config": {
     "properties": {
       "credential": {
-        "type": "credential",
-        "label": "GitHub Credential",
-        "required": true,
-        "anyOf": {
-          "github_token": "GitHub Personal Access Token"
-        },
-        "helpText": "Select a GitHub credential or create a new one"
+        "type": "string",
+        "anyOf": { "github_token": "GitHub Personal Access Token" },
+        "ui": {
+          "widget": "credential",
+          "label": "GitHub Credential",
+          "help": "Personal Access Token with repo + read:org scopes",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "A GitHub credential is required" }
+          ]
+        }
       },
-      "extraction-method": {
-        "type": "text",
-        "label": "Extraction Method",
-        "default": "direct",
-        "required": true,
-        "hidden": true
-      }
-    }
-  },
-  "preflight": {
-    "label": "Preflight Check",
-    "description": "Validate GitHub access and permissions",
-    "properties": {
-      "check-status": {
-        "type": "text",
-        "label": "Preflight Status",
-        "required": false,
-        "readOnly": true,
-        "helpText": "Results of the preflight validation"
-      }
-    }
-  },
-  "metadata": {
-    "label": "Extraction Configuration",
-    "description": "Configure what to extract from GitHub",
-    "properties": {
       "organization": {
-        "type": "text",
-        "label": "Organization Name",
-        "required": true,
-        "helpText": "GitHub organization or user account to extract from",
-        "placeholder": "e.g., atlanhq"
+        "type": "string",
+        "ui": {
+          "widget": "input",
+          "label": "Organization",
+          "help": "GitHub organization or user account to extract from",
+          "placeholder": "e.g., atlanhq",
+          "grid": 12,
+          "rules": [
+            { "required": true, "message": "Organization is required" }
+          ]
+        }
       },
       "repositories": {
-        "type": "multitext",
-        "label": "Repositories",
-        "required": false,
-        "helpText": "Specific repositories to extract (leave empty for all). One per line.",
-        "placeholder": "repo1\nrepo2\nrepo3"
+        "type": "array",
+        "ui": {
+          "widget": "input",
+          "label": "Repositories (optional)",
+          "help": "Specific repositories to extract. Leave empty to extract all.",
+          "placeholder": "e.g., atlan-python",
+          "grid": 12
+        }
       },
       "extract_wiki": {
-        "type": "switch",
-        "label": "Extract Wiki Pages",
+        "type": "boolean",
         "default": false,
-        "helpText": "Clone and index wiki pages from repositories"
+        "ui": {
+          "label": "Extract Wiki Pages",
+          "help": "Clone and index wiki pages from repositories",
+          "grid": 12
+        }
       },
       "extract_yaml": {
-        "type": "switch",
-        "label": "Extract YAML Files",
+        "type": "boolean",
         "default": false,
-        "helpText": "Extract and index YAML configuration files"
+        "ui": {
+          "label": "Extract YAML Files",
+          "help": "Extract and index YAML configuration files",
+          "grid": 12
+        }
       },
       "extract_sbom": {
-        "type": "switch",
-        "label": "Extract SBOM (Software Bill of Materials)",
+        "type": "boolean",
         "default": false,
-        "helpText": "Generate and extract dependency graphs using GitHub's SBOM API"
+        "ui": {
+          "label": "Extract SBOM (Software Bill of Materials)",
+          "help": "Generate and extract dependency graphs using GitHub’s SBOM API",
+          "grid": 12
+        }
       },
       "sbom_poll_interval_seconds": {
         "type": "number",
-        "label": "SBOM Poll Interval (seconds)",
         "default": 15,
-        "required": false,
-        "hidden": true,
-        "helpText": "How often to check SBOM generation status"
+        "ui": {
+          "hidden": true
+        }
       },
-      "preflight-check": {
-        "type": "switch",
-        "label": "Run Preflight Check",
-        "default": true,
-        "required": true,
-        "helpText": "Validate credentials and permissions before extraction"
+      "extraction_method": {
+        "type": "string",
+        "default": "direct",
+        "ui": {
+          "hidden": true
+        }
       }
-    }
-  },
-  "sync_glossary": {
-    "label": "Glossary Sync",
-    "description": "Configure the wiki → glossary sync task",
-    "properties": {
-      "repo_full_name": {
-        "type": "text",
-        "label": "GitHub Repository (org/repo)",
-        "required": true,
-        "helpText": "The repository whose wiki should be synced, e.g. acme/telemetry"
+    },
+    "steps": [
+      {
+        "id": "credentials",
+        "label": "Credentials",
+        "properties": ["credential"]
       },
-      "glossary_name": {
-        "type": "text",
-        "label": "Glossary Name",
-        "required": true,
-        "helpText": "Target Atlan glossary; will be created if missing"
+      {
+        "id": "scope",
+        "label": "Scope",
+        "properties": ["organization", "repositories"]
       },
-      "phase1_filter": {
-        "type": "switch",
-        "label": "Phase 1 filter",
-        "default": true,
-        "helpText": "If on, only push Client + Shared Schemas pages"
-      },
-      "dry_run": {
-        "type": "switch",
-        "label": "Dry run",
-        "default": false,
-        "helpText": "Log what would be saved; never write to Atlan"
-      },
-      "atlan_credential": {
-        "type": "credential",
-        "label": "Atlan Credential",
-        "required": true,
-        "anyOf": {
-          "atlan_api_token": "Atlan API Token"
-        },
-        "helpText": "Atlan tenant credential used to write glossary terms"
+      {
+        "id": "options",
+        "label": "Extraction Options",
+        "properties": ["extract_wiki", "extract_yaml", "extract_sbom", "sbom_poll_interval_seconds", "extraction_method"]
       }
-    }
+    ]
   }
 }
