@@ -7,6 +7,14 @@ Usage:
     uv run python serve_playground.py
 
 Then open http://localhost:8000
+
+Response contract (reverse-engineered from the playground SPA bundle):
+  GET /workflows/v1/configmaps        -> {"data": ["<id>", ...]}   (id strings)
+  GET /workflows/v1/configmap/{id}    -> {"data": {id,name,logo,config}}
+  GET /workflows/v1/manifest          -> {...manifest...}          (read raw)
+
+The SPA reads e.value.data off the configmap fetches (useAsyncData style),
+but reads the manifest body directly — hence the asymmetric wrapping.
 """
 
 import json
@@ -29,21 +37,18 @@ manifest = json.loads(MANIFEST_FILE.read_text())
 
 
 async def list_configmaps(request: Request) -> JSONResponse:
-    """GET /workflows/v1/configmaps — list of config map id strings.
-
-    The SPA calls .startsWith() on each item, so these MUST be strings.
-    """
-    return JSONResponse([config_map["id"]])
+    """GET /workflows/v1/configmaps — {data: [id strings]}."""
+    return JSONResponse({"data": [config_map["id"]]})
 
 
 async def get_manifest(request: Request) -> JSONResponse:
-    """GET /workflows/v1/manifest — connector manifest."""
+    """GET /workflows/v1/manifest — raw manifest (SPA reads body directly)."""
     return JSONResponse(manifest)
 
 
 async def get_configmap(request: Request) -> JSONResponse:
-    """GET /workflows/v1/configmap/{id} — full config map (id/name/logo/config)."""
-    return JSONResponse(config_map)
+    """GET /workflows/v1/configmap/{id} — {data: {id,name,logo,config}}."""
+    return JSONResponse({"data": config_map})
 
 
 routes = [
